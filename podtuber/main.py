@@ -1,15 +1,13 @@
 # TODO currently it issues a warning because of file extension mismatch,
 # it works under Pocket Casts, might prove problematic for other apps
-# I guess it's the source of (most of) the following problems
-from datetime import timedelta
-# TODO podcastindex.org doesn't play, or download
-# TODO https://www.castfeedvalidator.com/ gives warnings
-# TODO Mac's podcast takes 30 minutes to start playing (Daniel's report in Discord)
 
+# TODO podcastindex.org doesn't play, or download
+# TODO Mac's podcast takes 30 minutes to start playing (Daniel's report in Discord)
 # TODO Pocket Casts assumes next episode release time - why? how can we control this?
 
 
 from urllib.parse import urlparse
+from datetime import timedelta
 import pytz
 import argparse
 
