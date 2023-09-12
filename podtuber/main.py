@@ -1,7 +1,7 @@
 # TODO currently it issues a warning because of file extension mismatch,
 # it works under Pocket Casts, might prove problematic for other apps
 # I guess it's the source of (most of) the following problems
-
+from datetime import timedelta
 # TODO podcastindex.org doesn't play, or download
 # TODO https://www.castfeedvalidator.com/ gives warnings
 # TODO Mac's podcast takes 30 minutes to start playing (Daniel's report in Discord)
@@ -60,7 +60,10 @@ def create_rss_from_youtube_playlist(url):
             episode.publication_date = pytz.utc.localize(video.publish_date)  # TODO is it really UTC? always?
             episode.explicit = video.age_restricted
             stream = video.streams.get_audio_only()  # returns best mp4 audio stream
-            episode.media = Media(stream.url, type='audio/x-m4a', size=stream.filesize)
+            episode.media = Media(stream.url,
+                                  type='audio/x-m4a',
+                                  size=stream.filesize,
+                                  duration=timedelta(seconds=video.length))
             episode.id = video.watch_url
             episode.link = video.watch_url
             episode.authors = [Person(video.author)]
