@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "podtuber"
+version = "0.1.0"
+description = ""
+authors = ["Zvika Haramaty <haramaty.zvika@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+podgen = "^1.1.0"
+pytube = "^15.0.0"
+pathvalidate = "^3.1.0"
+
+
+[tool.poetry.group.dev.dependencies]
+getpodcast = "^1.0.10"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
