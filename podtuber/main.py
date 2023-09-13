@@ -1,14 +1,12 @@
-# TODO currently it issues a warning because of file extension mismatch,
-# it works under Pocket Casts, might prove problematic for other apps
+# TODO Google Podcast Index (maybe) needs owner (i.e., mail) in order to index
+# TODO Pocket Casts assumes next episode release time - why? how can we control this?
 
+# I'm not sure that those are still relevant, they're from before I started downloading from youtube:
 # TODO podcastindex.org doesn't play, or download
 # TODO Mac's podcast takes 30 minutes to start playing (Daniel's report in Discord)
-# TODO Pocket Casts assumes next episode release time - why? how can we control this?
-# TODO Google Podcast Index needs owner (i.e., mail) in order to index
-# TODO Google Podcast app can't add it manually - maybe also because of owner?
 
-from urllib.parse import urlparse
-from datetime import timedelta
+from urllib.parse import urlparse, quote
+from pathlib import Path
 import pytz
 import argparse
 
@@ -21,8 +19,21 @@ def clean_jpg_url(url):
     return urlparse(url)._replace(query='').geturl()
 
 
-def create_rss_from_youtube_playlist(url):
-    playlist = Playlist(url)
+def get_media_from_youtube(podcast_url_base, series_title, stream):
+    path = Path('files') / series_title
+    path.mkdir(parents=True, exist_ok=True)
+    stream.subtype = 'm4a'
+    file = Path(stream.download(output_path=path))
+    media = Media(
+        url=f'{podcast_url_base}/{quote((path / file.name).as_posix())}',
+        size=stream.filesize,
+    )
+    media.populate_duration_from(file)
+    return media
+
+
+def create_rss_from_youtube_playlist(playlist_url, podcast_url_base):
+    playlist = Playlist(playlist_url)
     print(playlist.title)
     assert playlist.videos
 
@@ -40,16 +51,18 @@ def create_rss_from_youtube_playlist(url):
     # TODO set automatically (e.g., https://github.com/pytube/pytube/issues/1742) or manually from argparse
     podcast.language = 'en-US'
 
+    sanitized_title = sanitize_filename(playlist.title).replace(' ', '_')
+
     # TODO support these?
     # podcast.owner=Person(playlist.owner)   # podcast.owner needs also mail (while playlist.owner is only name)
-    # podcast.feed_url=...
+    # podcast.feed_url=...      # using podcast_url_base + sanitized_title + .rss
     # podcast.category=...
 
     for video in playlist.videos:
         try:
             video.check_availability()
         except Exception as err:
-            print(f"Skipping '{url}' because of: {err}")
+            print(f"Skipping '{playlist_url}' because of: {err}")
         else:
             # make sure info is parsed (otherwise description might be None)
             # taken from https://github.com/pytube/pytube/issues/1674
@@ -64,15 +77,12 @@ def create_rss_from_youtube_playlist(url):
             if episode.explicit:
                 podcast.explicit = True
             stream = video.streams.get_audio_only()  # returns best mp4 audio stream
-            episode.media = Media(stream.url,
-                                  type='audio/x-m4a',
-                                  size=stream.filesize,
-                                  duration=timedelta(seconds=video.length))
+            episode.media = get_media_from_youtube(podcast_url_base, sanitized_title, stream)
             episode.id = video.watch_url
             episode.link = video.watch_url
             episode.authors = [Person(video.author)]
 
-    filename = f'{sanitize_filename(playlist.title)}.rss'.replace(' ', '_')
+    filename = f'{sanitized_title}.rss'
     podcast.rss_file(filename)
     return filename
 
@@ -83,5 +93,6 @@ if __name__ == '__main__':
     parser.add_argument('url', help="YouTube playlist's URL")
     args = parser.parse_args()
 
-    rssfile = create_rss_from_youtube_playlist(args.url)
+    podcast_url_base = 'http://18.159.236.82/zvika/podcast/'  # TODO
+    rssfile = create_rss_from_youtube_playlist(args.url, podcast_url_base)
     print(f"Created '{rssfile}'")
