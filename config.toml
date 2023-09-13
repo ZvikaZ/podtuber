@@ -1,0 +1,32 @@
+[general]
+# the rss file should be served in base_url/podcast_title.rss
+# note - it's your responsibility to upload *.rss and files/ to base_url
+base_url = 'https://example.com/podcast/'
+
+# each playlist should have it's own [[podcasts]] section
+[[podcasts]]
+# only url is a mandatory field
+url = 'https://www.youtube.com/playlist?list=PL9qFy7xdUfuTE4Xnzran_1ReI_Q0ofL3V'
+
+# all the other podcast field are optional:
+
+language = 'en_US'
+
+# category and subcategory (if used) should be from from https://podnews.net/article/apple-changed-podcast-categories-2019
+category = "Leisure"
+# we can have only category ; we cannot have only subcategory
+# both can be omitted
+subcategory = "Video games"
+
+# maybe the mail is needed for Google Podcast indexing
+owner_mail = 'someone@example.com'
+
+# all the other information is retrieved from the YouTube's playlist
+# if you need to manually override any of them, open an issue in GitHub
+
+# you can have as many [[podcasts]] as you'd like
+[[podcasts]]
+url = 'https://www.youtube.com/playlist?list=PLmotie7lbYGKYcGymgQALAKxYsKfWnJIb'
+language = 'he_IL'
+category = 'Religion & Spirituality'
+subcategory = 'Judaism'

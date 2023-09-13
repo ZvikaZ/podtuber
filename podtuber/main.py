@@ -8,34 +8,38 @@
 from urllib.parse import urlparse, quote
 from pathlib import Path
 import pytz
-import argparse
+import sys
 
-from podgen import Podcast, Media, Person, htmlencode
+from podgen import Podcast, Media, Person, Category, htmlencode
 from pytube import Playlist
 from pathvalidate import sanitize_filename
+import tomli
 
 
 def clean_jpg_url(url):
     return urlparse(url)._replace(query='').geturl()
 
 
-def get_media_from_youtube(podcast_url_base, series_title, stream):
+def get_media_from_youtube(config, series_title, stream):
     path = Path('files') / series_title
     path.mkdir(parents=True, exist_ok=True)
     stream.subtype = 'm4a'
     file = Path(stream.download(output_path=path))
     media = Media(
-        url=f'{podcast_url_base}/{quote((path / file.name).as_posix())}',
+        url=f'{config["general"]["base_url"]}/{quote((path / file.name).as_posix())}',
         size=stream.filesize,
     )
     media.populate_duration_from(file)
     return media
 
 
-def create_rss_from_youtube_playlist(playlist_url, podcast_url_base):
-    playlist = Playlist(playlist_url)
+def create_rss_from_youtube_playlist(podcast_config, config):
+    playlist = Playlist(podcast_config['url'])
     print(playlist.title)
     assert playlist.videos
+
+    sanitized_title = sanitize_filename(playlist.title).replace(' ', '_')
+    rss_filename = f'{sanitized_title}.rss'
 
     podcast = Podcast()
     podcast.name = playlist.title
@@ -47,22 +51,19 @@ def create_rss_from_youtube_playlist(playlist_url, podcast_url_base):
     podcast.explicit = playlist.videos[0].age_restricted
     podcast.image = clean_jpg_url(playlist.videos[0].thumbnail_url)  # TODO make sure it's square, at least 1400x1400
     podcast.authors = [Person(playlist.owner)]
+    podcast.category = Category(podcast_config.get('category'), podcast_config.get('subcategory'))
+    podcast.feed_url = f'{config["general"]["base_url"].strip("/")}/{rss_filename}'
+    if podcast_config.get('owner_mail'):
+        podcast.owner = Person(playlist.owner, podcast_config.get('owner_mail'))
 
-    # TODO set automatically (e.g., https://github.com/pytube/pytube/issues/1742) or manually from argparse
-    podcast.language = 'en-US'
-
-    sanitized_title = sanitize_filename(playlist.title).replace(' ', '_')
-
-    # TODO support these?
-    # podcast.owner=Person(playlist.owner)   # podcast.owner needs also mail (while playlist.owner is only name)
-    # podcast.feed_url=...      # using podcast_url_base + sanitized_title + .rss
-    # podcast.category=...
+    # TODO set automatically (e.g., https://github.com/pytube/pytube/issues/1742)
+    podcast.language = podcast_config.get('language')
 
     for video in playlist.videos:
         try:
             video.check_availability()
         except Exception as err:
-            print(f"Skipping '{playlist_url}' because of: {err}")
+            print(f"Skipping '{playlist.playlist_url}' because of: {err}")
         else:
             # make sure info is parsed (otherwise description might be None)
             # taken from https://github.com/pytube/pytube/issues/1674
@@ -77,22 +78,27 @@ def create_rss_from_youtube_playlist(playlist_url, podcast_url_base):
             if episode.explicit:
                 podcast.explicit = True
             stream = video.streams.get_audio_only()  # returns best mp4 audio stream
-            episode.media = get_media_from_youtube(podcast_url_base, sanitized_title, stream)
+            episode.media = get_media_from_youtube(config, sanitized_title, stream)
             episode.id = video.watch_url
             episode.link = video.watch_url
             episode.authors = [Person(video.author)]
 
-    filename = f'{sanitized_title}.rss'
-    podcast.rss_file(filename)
-    return filename
+    podcast.rss_file(rss_filename)
+    return rss_filename
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description="Creates a podcast .rss file from YouTube playlist")
-    parser.add_argument('url', help="YouTube playlist's URL")
-    args = parser.parse_args()
+    try:
+        with open("config.toml", mode="rb") as fp:
+            config = tomli.load(fp)
+    except FileNotFoundError:
+        sys.exit(
+            'Missing config.toml file in current directory. You can use https://github.com/zvikaZ/podtuber/config.toml as a reference.')
+    except Exception as err:
+        print(err)
+        sys.exit(
+            f'Illegal config.toml file. You can use https://github.com/zvikaZ/podtuber/config.toml as a reference.')
 
-    podcast_url_base = 'http://18.159.236.82/zvika/podcast/'  # TODO
-    rssfile = create_rss_from_youtube_playlist(args.url, podcast_url_base)
-    print(f"Created '{rssfile}'")
+    for podcast_config in config.get('podcasts'):
+        rssfile = create_rss_from_youtube_playlist(podcast_config, config)
+        print(f"Created '{rssfile}'\n")
