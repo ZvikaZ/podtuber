@@ -5,16 +5,24 @@ Simple Python application to create podcast `.rss` files from YouTube playlists.
 
 installation
 ------------
+You might want to start with creating a Python virtual env. For example:
+```shell
+conda create -n podtuber python=3
+conda activate podtuber
+```
+
+and then:
 ```shell
 pip install git+https://github.com/ZvikaZ/podtuber.git
 ```
+you might need to logout and login, in order for the new `podtuber` command to be updated in `PATH`.
 
 usage
 -----
 - copy the example `config.toml` to your working directory, and modify it as needed (it's thoroughly commented).
 - and run: 
 ```shell
-python podtuber/main.py
+podtuber
 ```
 
 notes
