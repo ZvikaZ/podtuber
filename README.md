@@ -19,7 +19,7 @@ you might need to logout and login, in order for the new `podtuber` command to b
 
 usage
 -----
-- copy the example `config.toml` to your working directory, and modify it as needed (it's thoroughly commented).
+- copy the [example config.toml](https://github.com/ZvikaZ/podtuber/blob/master/config.toml) to your working directory, and modify it as needed (it's thoroughly commented).
 - and run: 
 ```shell
 podtuber

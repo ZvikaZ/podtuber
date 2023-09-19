@@ -19,6 +19,8 @@ from podtuber.youtube_parser import YoutubeParser
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('podtuber')
 
+example_config_toml_url = 'https://github.com/ZvikaZ/podtuber/blob/master/config.toml'
+
 
 def get_parser(url):
     if urlparse(url).netloc == 'www.youtube.com' and urlparse(url).path == '/playlist':
@@ -83,12 +85,11 @@ def main():
             config = tomli.load(fp)
     except FileNotFoundError:
         logger.error('Missing config.toml file in current directory. You can use '
-                     'https://github.com/zvikaZ/podtuber/config.toml as a reference.')
+                     f'{example_config_toml_url} as a reference.')
         sys.exit()
     except Exception as err:
         logger.error(err)
-        logger.error(f'Illegal config.toml file. You can use https://github.com/zvikaZ/podtuber/config.toml as a '
-                     f'reference.')
+        logger.error(f'Illegal config.toml file. You can use {example_config_toml_url} as a reference.')
         sys.exit()
     for podcast_config in config.get('podcasts'):
         rssfile = create_rss(podcast_config, config)
