@@ -1,9 +1,12 @@
+# TODO add to pip, update instructions
+
 # TODO Pocket Casts assumes next episode release time - why? how can we control this?
 
 # I'm not sure that those are still relevant, they're from before I started downloading from youtube:
 # TODO podcastindex.org doesn't play, or download
 # TODO Mac's podcast takes 30 minutes to start playing (Daniel's report in Discord)
 
+import logging
 import sys
 import tomli
 from urllib.parse import urlparse
@@ -11,21 +14,25 @@ from urllib.parse import urlparse
 from podgen import Podcast, Person, Category, htmlencode
 from pathvalidate import sanitize_filename
 
-from youtube_parser import YoutubeParser
+from podtuber.youtube_parser import YoutubeParser
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('podtuber')
 
 
 def get_parser(url):
     if urlparse(url).netloc == 'www.youtube.com' and urlparse(url).path == '/playlist':
         return YoutubeParser(url)
     else:
-        print('Unsupported playlist: ', url)
-        sys.exit(
-            'Currently only YouTube playlists are supported. You can open an issue, maybe your parser will be added.')
+        logger.error(f'Unsupported playlist: {url}\n'
+                     'Currently only YouTube playlists are supported. You can open an issue, maybe your parser will '
+                     'be added.')
+        sys.exit()
 
 
 def create_rss(podcast_config, config):
     parser = get_parser(podcast_config['url'])
-    print(parser.get_name())
+    logger.info(f'Handling playlist {parser.get_name()}')
 
     sanitized_title = sanitize_filename(parser.get_name()).replace(' ', '_')
     rss_filename = f'{sanitized_title}.rss'
@@ -50,7 +57,7 @@ def create_rss(podcast_config, config):
         try:
             parsed_episode.check_availability()
         except Exception as err:
-            print(f"Skipping '{parsed_episode.get_title()}' ({parsed_episode.get_link()}) because of: {err}")
+            logger.warning(f"Skipping '{parsed_episode.get_title()}' ({parsed_episode.get_link()}) because of: {err}")
         else:
             episode = podcast.add_episode()
             # print(clean_jpg_url(v.thumbnail_url))    #TODO use this for episodes as well?
@@ -70,18 +77,23 @@ def create_rss(podcast_config, config):
     return rss_filename
 
 
-if __name__ == '__main__':
+def main():
     try:
         with open("config.toml", mode="rb") as fp:
             config = tomli.load(fp)
     except FileNotFoundError:
-        sys.exit(
-            'Missing config.toml file in current directory. You can use https://github.com/zvikaZ/podtuber/config.toml as a reference.')
+        logger.error('Missing config.toml file in current directory. You can use '
+                     'https://github.com/zvikaZ/podtuber/config.toml as a reference.')
+        sys.exit()
     except Exception as err:
-        print(err)
-        sys.exit(
-            f'Illegal config.toml file. You can use https://github.com/zvikaZ/podtuber/config.toml as a reference.')
-
+        logger.error(err)
+        logger.error(f'Illegal config.toml file. You can use https://github.com/zvikaZ/podtuber/config.toml as a '
+                     f'reference.')
+        sys.exit()
     for podcast_config in config.get('podcasts'):
         rssfile = create_rss(podcast_config, config)
-        print(f"Created '{rssfile}'\n")
+        logger.info(f"Created '{rssfile}'\n")
+
+
+if __name__ == '__main__':
+    main()

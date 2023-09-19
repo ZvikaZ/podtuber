@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from urllib.parse import quote
 import pytz
@@ -5,7 +6,9 @@ import pytz
 from pytube import Playlist
 from podgen import Person, Media
 
-from utils import clean_jpg_url
+from podtuber.utils import clean_jpg_url
+
+logger = logging.getLogger(__name__)
 
 
 class VideoParser:
@@ -82,6 +85,7 @@ def get_media_from_youtube(base_url, series_title, stream):
     path.mkdir(parents=True, exist_ok=True)
     stream.subtype = 'm4a'
     file = Path(stream.download(output_path=path))
+    logger.info(file)
     media = Media(
         url=f'{base_url}/{quote((path / file.name).as_posix())}',
         size=stream.filesize,
