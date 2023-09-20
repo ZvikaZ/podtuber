@@ -1,9 +1,10 @@
 [tool.poetry]
 name = "podtuber"
-version = "0.1.0"
-description = ""
+version = "0.1.1"
+description = "Simple Python application to create podcast `.rss` files from YouTube playlists."
 authors = ["Zvika Haramaty <haramaty.zvika@gmail.com>"]
 readme = "README.md"
+repository = "https://github.com/ZvikaZ/podtuber"
 
 [tool.poetry.dependencies]
 python = "^3.10"
