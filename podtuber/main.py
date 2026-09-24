@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 from podgen import Podcast, Person, Category, htmlencode
 from pathvalidate import sanitize_filename
 
-from podtuber.youtube_parser import YoutubeParser
+from podtuber.youtube_parser import YoutubePlaylistParser, YoutubeSingleParser
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('podtuber')
@@ -23,8 +23,11 @@ example_config_toml_url = 'https://github.com/ZvikaZ/podtuber/blob/master/config
 
 
 def get_parser(url):
-    if urlparse(url).netloc == 'www.youtube.com' and urlparse(url).path == '/playlist':
-        return YoutubeParser(url)
+    if urlparse(url).netloc == 'www.youtube.com':
+        if urlparse(url).path == '/playlist':
+            return YoutubePlaylistParser(url)
+        else:
+            return YoutubeSingleParser(url)
     else:
         logger.error(f'Unsupported playlist: {url}\n'
                      'Currently only YouTube playlists are supported. You can open an issue, maybe your parser will '
@@ -47,7 +50,10 @@ def create_rss(podcast_config, config):
     podcast.image = parser.get_image()
     podcast.authors = parser.get_authors()
 
-    podcast.category = Category(podcast_config.get('category'), podcast_config.get('subcategory'))
+    try:
+        podcast.category = Category(podcast_config['category'], podcast_config.get('subcategory'))
+    except KeyError:
+        pass
     podcast.feed_url = f'{config["general"]["base_url"].strip("/")}/{rss_filename}'
     if podcast_config.get('owner_mail'):
         podcast.owner = Person(parser.get_owner_name(), podcast_config.get('owner_mail'))

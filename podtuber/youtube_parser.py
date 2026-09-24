@@ -3,7 +3,7 @@ from pathlib import Path
 from urllib.parse import quote
 import pytz
 
-from pytube import Playlist
+from pytube import Playlist, YouTube
 from podgen import Person, Media
 
 from podtuber.utils import clean_jpg_url
@@ -48,7 +48,7 @@ class VideoParser:
         return [Person(self.video.author)]
 
 
-class YoutubeParser:
+class YoutubePlaylistParser:
     def __init__(self, playlist_url):
         self.playlist = Playlist(playlist_url)
         assert self.playlist.videos
@@ -78,6 +78,34 @@ class YoutubeParser:
     def get_episodes(self):
         for video in self.playlist.videos:
             yield VideoParser(video)
+
+
+class YoutubeSingleParser:
+    def __init__(self, url):
+        self.video_parser = VideoParser(YouTube(url))
+        self.video_parser.check_availability()
+
+    def get_name(self):
+        return self.video_parser.get_title()
+
+    def get_description(self):
+        return self.video_parser.get_summary()
+
+    def get_website(self):
+        return self.video_parser.get_link()
+
+    def get_image(self):
+        # TODO make sure it's square, at least 1400x1400
+        return clean_jpg_url(self.video_parser.video.thumbnail_url)
+
+    def get_authors(self):
+        return self.video_parser.get_authors()
+
+    def get_owner_name(self):
+        return self.video_parser.video.author
+
+    def get_episodes(self):
+        return [self.video_parser]
 
 
 def get_media_from_youtube(base_url, series_title, stream):
