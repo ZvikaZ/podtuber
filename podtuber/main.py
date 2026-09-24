@@ -9,6 +9,7 @@
 import logging
 import sys
 import tomli
+from pathlib import Path
 from urllib.parse import urlparse
 
 from podgen import Podcast, Person, Category, htmlencode
@@ -16,6 +17,7 @@ from pathvalidate import sanitize_filename
 
 from podtuber.youtube_parser import YoutubePlaylistParser, YoutubeSingleParser
 from podtuber import kalner_parser
+from podtuber.index_page import write_index
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('podtuber')
@@ -39,7 +41,7 @@ def get_parsers(url):
         sys.exit()
 
 
-def create_rss(parser, podcast_config, config):
+def create_rss(parser, podcast_config, config, output_dir):
     logger.info(f'Handling playlist {parser.get_name()}')
 
     sanitized_title = sanitize_filename(parser.get_name()).replace(' ', '_')
@@ -86,8 +88,9 @@ def create_rss(parser, podcast_config, config):
             episode.link = parsed_episode.get_link()
             episode.authors = parsed_episode.get_authors()
 
-    podcast.rss_file(rss_filename)
-    return rss_filename
+    podcast.rss_file(str(output_dir / rss_filename))
+    logger.info(f"Created '{output_dir / rss_filename}'\n")
+    return podcast
 
 
 def main():
@@ -102,10 +105,15 @@ def main():
         logger.error(err)
         logger.error(f'Illegal config.toml file. You can use {example_config_toml_url} as a reference.')
         sys.exit()
+    output_dir = Path(config['general'].get('output_dir', '.'))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    podcasts = []
     for podcast_config in config.get('podcasts'):
         for parser in get_parsers(podcast_config['url']):
-            rssfile = create_rss(parser, podcast_config, config)
-            logger.info(f"Created '{rssfile}'\n")
+            podcasts.append(create_rss(parser, podcast_config, config, output_dir))
+    write_index(podcasts, output_dir / 'index.html', title=config['general'].get('title', 'Podcasts'),
+                lang=config['general'].get('language', 'en'))
+    logger.info(f"Created '{output_dir / 'index.html'}'")
 
 
 if __name__ == '__main__':

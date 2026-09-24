@@ -1,7 +1,15 @@
 [general]
 # the rss file should be served in base_url/podcast_title.rss
 # note - it's your responsibility to upload *.rss and files/ to base_url
-base_url = 'https://example.com/podcast/'
+# (this repository's GitHub Actions workflow publishes output_dir to GitHub Pages)
+base_url = 'https://zvikaz.github.io/podtuber/'
+
+# where the .rss files, and an index.html listing them, are written (defaults to the current directory)
+output_dir = 'public'
+
+# the index.html page's title and language
+title = 'שיעורים - פודקאסטים'
+language = 'he'
 
 # each playlist should have it's own [[podcasts]] section
 # YouTube playlists are currently disabled: pytube no longer works with YouTube
