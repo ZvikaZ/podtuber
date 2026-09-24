@@ -2,8 +2,34 @@ from datetime import datetime, timezone
 from html import escape
 from urllib.parse import urlparse
 
+# the page's texts, by the index page's language (config.toml's [general] language); English for any other
+TEXTS = {
+    'en': {
+        'dir': 'ltr',
+        'date_format': '%Y-%m-%d',
+        'summary': '{count} podcasts &middot; updated {updated}',
+        'filter': 'Filter&hellip;',
+        'filter_label': 'Filter podcasts',
+        'meta': '{episodes} episodes &middot; latest {latest}',
+        'open': 'Open in podcast app',
+        'copy': 'Copy RSS link',
+        'copied': 'Copied',
+    },
+    'he': {
+        'dir': 'rtl',
+        'date_format': '%d/%m/%Y',
+        'summary': '{count} פודקאסטים &middot; עודכן {updated}',
+        'filter': 'סינון&hellip;',
+        'filter_label': 'סינון פודקאסטים',
+        'meta': '{episodes} פרקים &middot; אחרון {latest}',
+        'open': 'פתיחה באפליקציית פודקאסטים',
+        'copy': 'העתקת קישור RSS',
+        'copied': 'הועתק',
+    },
+}
+
 PAGE = """<!DOCTYPE html>
-<html lang="{lang}">
+<html lang="{lang}" dir="{dir}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -33,8 +59,8 @@ PAGE = """<!DOCTYPE html>
 <body>
 <main>
 <h1>{title}</h1>
-<p class="note">{count} podcasts &middot; updated {updated}</p>
-<input type="search" placeholder="Filter&hellip;" aria-label="Filter podcasts" dir="auto"
+<p class="note">{summary}</p>
+<input type="search" placeholder="{filter}" aria-label="{filter_label}" dir="auto"
        oninput="for (const li of document.querySelectorAll('li'))
                   li.hidden = !li.dataset.name.includes(this.value.trim())">
 <ul>
@@ -44,7 +70,7 @@ PAGE = """<!DOCTYPE html>
 <script>
   for (const button of document.querySelectorAll('button[data-url]'))
     button.onclick = () => navigator.clipboard.writeText(button.dataset.url)
-      .then(() => {{ button.textContent = 'Copied'; setTimeout(() => button.textContent = 'Copy RSS link', 1500); }});
+      .then(() => {{ button.textContent = '{copied}'; setTimeout(() => button.textContent = '{copy}', 1500); }});
 </script>
 </body>
 </html>
@@ -52,28 +78,34 @@ PAGE = """<!DOCTYPE html>
 
 ITEM = """<li data-name="{name}">
   <div class="name" dir="auto">{name}</div>
-  <div class="meta">{episodes} episodes &middot; latest {latest}</div>
+  <div class="meta">{meta}</div>
   <div class="links">
-    <a href="{app_url}">Open in podcast app</a>
-    <button type="button" data-url="{url}">Copy RSS link</button>
+    <a href="{app_url}">{open}</a>
+    <button type="button" data-url="{url}">{copy}</button>
   </div>
 </li>"""
 
 
 def write_index(podcasts, path, title, lang='en'):
     """A page listing the podcasts, for subscribing to them from a phone."""
+    texts = TEXTS.get(lang.split('-')[0], TEXTS['en'])
     items = []
     for podcast in sorted(podcasts, key=lambda podcast: podcast.name):
         latest = max((episode.publication_date for episode in podcast.episodes), default=None)
         items.append(ITEM.format(
             name=escape(podcast.name),
-            episodes=len(podcast.episodes),
-            latest=latest.strftime('%Y-%m-%d') if latest else '-',
+            meta=texts['meta'].format(episodes=len(podcast.episodes),
+                                      latest=latest.strftime(texts['date_format']) if latest else '-'),
             url=escape(podcast.feed_url),
             app_url=escape(podcast_app_url(podcast.feed_url)),
+            open=texts['open'],
+            copy=texts['copy'],
         ))
-    path.write_text(PAGE.format(title=escape(title), lang=escape(lang), count=len(items),
-                                updated=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
+    updated = datetime.now(timezone.utc).strftime(texts['date_format'] + ' %H:%M UTC')
+    path.write_text(PAGE.format(title=escape(title), lang=escape(lang), dir=texts['dir'],
+                                summary=texts['summary'].format(count=len(items), updated=updated),
+                                filter=texts['filter'], filter_label=texts['filter_label'],
+                                copy=texts['copy'], copied=texts['copied'],
                                 items='\n'.join(items)),
                     encoding='utf8')
 
