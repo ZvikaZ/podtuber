@@ -2,11 +2,14 @@ from datetime import datetime, timezone
 from html import escape
 from urllib.parse import urlparse
 
+from pyluach.dates import HebrewDate
+
 # the page's texts, by the index page's language (config.toml's [general] language); English for any other
 TEXTS = {
     'en': {
         'dir': 'ltr',
         'date_format': '%Y-%m-%d',
+        'latest_date': lambda date: date.strftime('%Y-%m-%d'),
         'summary': '{count} podcasts &middot; updated {updated}',
         'filter': 'Filter&hellip;',
         'filter_label': 'Filter podcasts',
@@ -18,6 +21,7 @@ TEXTS = {
     'he': {
         'dir': 'rtl',
         'date_format': '%d/%m/%Y',
+        'latest_date': lambda date: HebrewDate.from_pydate(date.date()).hebrew_date_string(),  # 'ל׳ שבט תשפ״ג'
         'summary': '{count} פודקאסטים &middot; עודכן {updated}',
         'filter': 'סינון&hellip;',
         'filter_label': 'סינון פודקאסטים',
@@ -95,7 +99,7 @@ def write_index(podcasts, path, title, lang='en'):
         items.append(ITEM.format(
             name=escape(podcast.name),
             meta=texts['meta'].format(episodes=len(podcast.episodes),
-                                      latest=latest.strftime(texts['date_format']) if latest else '-'),
+                                      latest=texts['latest_date'](latest) if latest else '-'),
             url=escape(podcast.feed_url),
             app_url=escape(podcast_app_url(podcast.feed_url)),
             open=texts['open'],

@@ -12,6 +12,7 @@ dependencies = [
     "tomli>=2.0.1",
     "pytz",
     "curl-cffi>=0.16.3",
+    "pyluach>=2.3.0",
 ]
 
 [project.urls]
