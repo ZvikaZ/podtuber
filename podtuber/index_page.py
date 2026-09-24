@@ -53,7 +53,6 @@ ITEM = """<li data-name="{name}">
   <div class="name" dir="auto">{name}</div>
   <div class="meta">{episodes} episodes &middot; latest {latest}</div>
   <div class="links">
-    <a href="{url}">RSS</a>
     <button type="button" data-url="{url}">Copy RSS link</button>
   </div>
 </li>"""
