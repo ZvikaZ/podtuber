@@ -4,32 +4,33 @@
 base_url = 'https://example.com/podcast/'
 
 # each playlist should have it's own [[podcasts]] section
-[[podcasts]]
+# YouTube playlists are currently disabled: pytube no longer works with YouTube
+# [[podcasts]]
 # only url is a mandatory field
-url = 'https://www.youtube.com/playlist?list=PL9qFy7xdUfuTE4Xnzran_1ReI_Q0ofL3V'
+# url = 'https://www.youtube.com/playlist?list=PL9qFy7xdUfuTE4Xnzran_1ReI_Q0ofL3V'
 
 # all the other podcast field are optional:
 
-language = 'en-US'
+# language = 'en-US'
 
 # category and subcategory (if used) should be from from https://podnews.net/article/apple-changed-podcast-categories-2019
-category = "Leisure"
+# category = "Leisure"
 # we can have only category ; we cannot have only subcategory
 # both can be omitted
-subcategory = "Video games"
+# subcategory = "Video games"
 
 # maybe the mail is needed for Google Podcast indexing
-owner_mail = 'someone@example.com'
+# owner_mail = 'someone@example.com'
 
 # all the other information is retrieved from the YouTube's playlist
 # if you need to manually override any of them, open an issue in GitHub
 
 # you can have as many [[podcasts]] as you'd like
-[[podcasts]]
-url = 'https://www.youtube.com/playlist?list=PLmotie7lbYGKYcGymgQALAKxYsKfWnJIb'
-language = 'he-IL'
-category = 'Religion & Spirituality'
-subcategory = 'Judaism'
+# [[podcasts]]
+# url = 'https://www.youtube.com/playlist?list=PLmotie7lbYGKYcGymgQALAKxYsKfWnJIb'
+# language = 'he-IL'
+# category = 'Religion & Spirituality'
+# subcategory = 'Judaism'
 
 # haravyosefkalner.com: without ?sidra=..., a podcast for every series on the site
 [[podcasts]]
