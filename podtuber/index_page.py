@@ -8,8 +8,8 @@ from pyluach.dates import HebrewDate
 TEXTS = {
     'en': {
         'dir': 'ltr',
-        'date_format': '%Y-%m-%d',
         'latest_date': lambda date: date.strftime('%Y-%m-%d'),
+        'updated_date': lambda date: date.strftime('%Y-%m-%d %H:%M UTC'),
         'summary': '{count} podcasts &middot; updated {updated}',
         'filter': 'Filter&hellip;',
         'filter_label': 'Filter podcasts',
@@ -20,8 +20,8 @@ TEXTS = {
     },
     'he': {
         'dir': 'rtl',
-        'date_format': '%d/%m/%Y',
         'latest_date': lambda date: HebrewDate.from_pydate(date.date()).hebrew_date_string(),  # 'ל׳ שבט תשפ״ג'
+        'updated_date': lambda date: HebrewDate.from_pydate(date.date()).hebrew_date_string(),
         'summary': '{count} פודקאסטים &middot; עודכן {updated}',
         'filter': 'סינון&hellip;',
         'filter_label': 'סינון פודקאסטים',
@@ -64,7 +64,7 @@ PAGE = """<!DOCTYPE html>
 <main>
 <h1>{title}</h1>
 <p class="note">{summary}</p>
-<input type="search" placeholder="{filter}" aria-label="{filter_label}" dir="auto"
+<input type="search" placeholder="{filter}" aria-label="{filter_label}"
        oninput="for (const li of document.querySelectorAll('li'))
                   li.hidden = !li.dataset.name.includes(this.value.trim())">
 <ul>
@@ -105,7 +105,7 @@ def write_index(podcasts, path, title, lang='en'):
             open=texts['open'],
             copy=texts['copy'],
         ))
-    updated = datetime.now(timezone.utc).strftime(texts['date_format'] + ' %H:%M UTC')
+    updated = texts['updated_date'](datetime.now(timezone.utc))
     path.write_text(PAGE.format(title=escape(title), lang=escape(lang), dir=texts['dir'],
                                 summary=texts['summary'].format(count=len(items), updated=updated),
                                 filter=texts['filter'], filter_label=texts['filter_label'],
