@@ -1,7 +1,8 @@
 podtuber
 ========
 
-Simple Python application to create podcast `.rss` files from YouTube playlists.
+Simple Python application to create podcast `.rss` files from YouTube playlists,
+and from the recorded lessons on [haravyosefkalner.com](https://www.haravyosefkalner.com/shiurim).
 
 Installation
 ------------

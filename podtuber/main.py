@@ -15,6 +15,7 @@ from podgen import Podcast, Person, Category, htmlencode
 from pathvalidate import sanitize_filename
 
 from podtuber.youtube_parser import YoutubePlaylistParser, YoutubeSingleParser
+from podtuber import kalner_parser
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('podtuber')
@@ -22,32 +23,36 @@ logger = logging.getLogger('podtuber')
 example_config_toml_url = 'https://github.com/ZvikaZ/podtuber/blob/master/config.toml'
 
 
-def get_parser(url):
-    if urlparse(url).netloc == 'www.youtube.com':
+def get_parsers(url):
+    netloc = urlparse(url).netloc
+    if netloc == 'www.youtube.com':
         if urlparse(url).path == '/playlist':
-            return YoutubePlaylistParser(url)
+            return [YoutubePlaylistParser(url)]
         else:
-            return YoutubeSingleParser(url)
+            return [YoutubeSingleParser(url)]
+    elif netloc in ('www.haravyosefkalner.com', 'haravyosefkalner.com'):
+        return kalner_parser.get_series_parsers(url)
     else:
         logger.error(f'Unsupported playlist: {url}\n'
-                     'Currently only YouTube playlists are supported. You can open an issue, maybe your parser will '
-                     'be added.')
+                     'Currently only YouTube and haravyosefkalner.com are supported. You can open an issue, maybe '
+                     'your parser will be added.')
         sys.exit()
 
 
-def create_rss(podcast_config, config):
-    parser = get_parser(podcast_config['url'])
+def create_rss(parser, podcast_config, config):
     logger.info(f'Handling playlist {parser.get_name()}')
 
     sanitized_title = sanitize_filename(parser.get_name()).replace(' ', '_')
-    rss_filename = f'{sanitized_title}.rss'
+    # parsers whose titles make poor URLs provide their own stable feed id
+    feed_id = parser.get_feed_id() if hasattr(parser, 'get_feed_id') else sanitized_title
+    rss_filename = f'{feed_id}.rss'
 
     podcast = Podcast()
     podcast.name = parser.get_name()
     podcast.description = parser.get_description()
     podcast.website = parser.get_website()
     podcast.explicit = False  # will be updated if one of the episodes is True
-    podcast.image = parser.get_image()
+    podcast.image = podcast_config.get('image') or parser.get_image()
     podcast.authors = parser.get_authors()
 
     try:
@@ -98,8 +103,9 @@ def main():
         logger.error(f'Illegal config.toml file. You can use {example_config_toml_url} as a reference.')
         sys.exit()
     for podcast_config in config.get('podcasts'):
-        rssfile = create_rss(podcast_config, config)
-        logger.info(f"Created '{rssfile}'\n")
+        for parser in get_parsers(podcast_config['url']):
+            rssfile = create_rss(parser, podcast_config, config)
+            logger.info(f"Created '{rssfile}'\n")
 
 
 if __name__ == '__main__':

@@ -11,6 +11,7 @@ dependencies = [
     "pathvalidate>=3.1.0",
     "tomli>=2.0.1",
     "pytz",
+    "curl-cffi>=0.16.3",
 ]
 
 [project.urls]
