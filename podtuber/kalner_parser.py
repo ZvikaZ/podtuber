@@ -136,6 +136,7 @@ def clean_title(item):
     """
     Filenames look like 'אגרת עא (בני דוד התשפב)__033__התשפג_שבט_ל' (series, lesson number, reversed date),
     or are free text such as 'הרב קלנר – מה עניינן של ארבע האמהות – כג חשוון התשפו'.
+    The former say nothing about the lesson but its number and date, so the title names the series too.
     """
     filename = item['filename']
     if '__' not in filename:
@@ -144,8 +145,8 @@ def clean_title(item):
     number = rest.pop(0) if len(rest) > 1 and rest[0].isdigit() else None
     if not number and (match := re.search(r'\s(\d+)$', prefix)):  # e.g. 'אורות ארץ ישראל 3__...'
         number = match.group(1)
-    label = clean_date(item.get('date') or '__'.join(rest))
-    return f'{int(number)}. {label}' if number else label
+    date = clean_date(item.get('date') or '__'.join(rest))
+    return ' - '.join(part for part in (item['subject'], number and f'שיעור {int(number)}', date) if part)
 
 
 def clean_date(date):
