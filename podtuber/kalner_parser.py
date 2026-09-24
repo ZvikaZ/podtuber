@@ -106,7 +106,7 @@ class KalnerSeriesParser:
         self.items = sort_lessons(items)
 
     def get_name(self):
-        return f'{self.subject} - הרב קלנר'
+        return self.subject if RAV_NAME in self.subject else f'{self.subject} - {RAV_NAME}'
 
     def get_feed_id(self):
         # the rss filename must never change once subscribed, and Hebrew titles make awkward URLs
