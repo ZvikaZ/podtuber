@@ -31,3 +31,11 @@ Notes
 
 - Also, you might want to periodically update the .rss file (because the playlist might have been updated).
 It can be achieved for example by using a Cron job to run `podtuber` on regular times.
+
+Development
+-----------
+The project is managed with [uv](https://docs.astral.sh/uv/):
+```shell
+uv sync
+uv run podtuber
+```

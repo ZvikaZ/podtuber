@@ -1,24 +1,29 @@
-[tool.poetry]
+[project]
 name = "podtuber"
 version = "0.1.1"
-description = "Simple Python application to create podcast `.rss` files from YouTube playlists."
-authors = ["Zvika Haramaty <haramaty.zvika@gmail.com>"]
+description = "Create podcast .rss files from YouTube playlists"
+authors = [{ name = "Zvika Haramaty", email = "haramaty.zvika@gmail.com" }]
 readme = "README.md"
-repository = "https://github.com/ZvikaZ/podtuber"
+requires-python = ">=3.10"
+dependencies = [
+    "podgen>=1.1.0",
+    "pytube>=15.0.0",
+    "pathvalidate>=3.1.0",
+    "tomli>=2.0.1",
+    "pytz",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-podgen = "^1.1.0"
-pytube = "^15.0.0"
-pathvalidate = "^3.1.0"
-tomli = "^2.0.1"
+[project.urls]
+Repository = "https://github.com/ZvikaZ/podtuber"
 
-[tool.poetry.group.dev.dependencies]
-getpodcast = "^1.0.10"
-
-[tool.poetry.scripts]
+[project.scripts]
 podtuber = "podtuber.main:main"
 
+[dependency-groups]
+dev = [
+    "getpodcast>=1.0.10",
+]
+
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
