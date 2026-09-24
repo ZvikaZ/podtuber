@@ -32,3 +32,14 @@ jobs:
           path: public
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # GitHub disables scheduled workflows after 60 days without repository activity;
+  # re-enabling this workflow on every run resets that timer, without any commits
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh api --method PUT "repos/${{ github.repository }}/actions/workflows/publish.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}

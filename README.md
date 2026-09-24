@@ -48,5 +48,5 @@ The `Publish podcasts` workflow in this repository runs `podtuber` daily (and on
 and deploys that folder to GitHub Pages, at `base_url`.
 To use it in a fork, set the repository's *Settings → Pages → Source* to *GitHub Actions*, and update `base_url`.
 
-Note that GitHub pauses scheduled workflows in repositories with no activity for 60 days;
-re-enable it from the *Actions* tab if that happens.
+GitHub pauses scheduled workflows in repositories with no activity for 60 days,
+so the workflow re-enables itself on every run, which resets that timer.
