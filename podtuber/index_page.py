@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from html import escape
+from urllib.parse import urlparse
 
 PAGE = """<!DOCTYPE html>
 <html lang="{lang}">
@@ -53,6 +54,7 @@ ITEM = """<li data-name="{name}">
   <div class="name" dir="auto">{name}</div>
   <div class="meta">{episodes} episodes &middot; latest {latest}</div>
   <div class="links">
+    <a href="{app_url}">Open in podcast app</a>
     <button type="button" data-url="{url}">Copy RSS link</button>
   </div>
 </li>"""
@@ -68,8 +70,17 @@ def write_index(podcasts, path, title, lang='en'):
             episodes=len(podcast.episodes),
             latest=latest.strftime('%Y-%m-%d') if latest else '-',
             url=escape(podcast.feed_url),
+            app_url=escape(podcast_app_url(podcast.feed_url)),
         ))
     path.write_text(PAGE.format(title=escape(title), lang=escape(lang), count=len(items),
                                 updated=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),
                                 items='\n'.join(items)),
                     encoding='utf8')
+
+
+def podcast_app_url(feed_url):
+    """
+    Android has no default podcast app, but podcast apps (Pocket Casts, AntennaPod, Podcast Addict...) handle the
+    pcast:// scheme, so the phone opens the feed in the installed one, or asks which one if there are several.
+    """
+    return 'pcast://' + feed_url.removeprefix(f'{urlparse(feed_url).scheme}://')
