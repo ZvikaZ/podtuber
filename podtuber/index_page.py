@@ -1,9 +1,5 @@
 from datetime import datetime, timezone
 from html import escape
-from urllib.parse import quote
-
-# one tap on a phone opens AntennaPod's subscribe screen for the feed
-ANTENNAPOD_SUBSCRIBE_URL = 'https://antennapod.org/deeplink/subscribe/?url={url}&title={title}'
 
 PAGE = """<!DOCTYPE html>
 <html lang="{lang}">
@@ -57,7 +53,6 @@ ITEM = """<li data-name="{name}">
   <div class="name" dir="auto">{name}</div>
   <div class="meta">{episodes} episodes &middot; latest {latest}</div>
   <div class="links">
-    <a href="{antennapod}">Subscribe in AntennaPod</a>
     <a href="{url}">RSS</a>
     <button type="button" data-url="{url}">Copy RSS link</button>
   </div>
@@ -74,8 +69,6 @@ def write_index(podcasts, path, title, lang='en'):
             episodes=len(podcast.episodes),
             latest=latest.strftime('%Y-%m-%d') if latest else '-',
             url=escape(podcast.feed_url),
-            antennapod=escape(ANTENNAPOD_SUBSCRIBE_URL.format(url=quote(podcast.feed_url, safe=''),
-                                                              title=quote(podcast.name, safe=''))),
         ))
     path.write_text(PAGE.format(title=escape(title), lang=escape(lang), count=len(items),
                                 updated=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'),

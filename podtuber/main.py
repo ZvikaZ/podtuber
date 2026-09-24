@@ -76,7 +76,7 @@ def create_rss(parser, podcast_config, config, output_dir):
         else:
             episode = podcast.add_episode()
             # print(clean_jpg_url(v.thumbnail_url))    #TODO use this for episodes as well?
-            episode.title = htmlencode(parsed_episode.get_title())
+            episode.title = parsed_episode.get_title()
             episode.summary = htmlencode(parsed_episode.get_summary())
             episode.publication_date = parsed_episode.get_publication_date()
             episode.explicit = parsed_episode.get_explicit()

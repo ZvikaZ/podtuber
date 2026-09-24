@@ -68,7 +68,7 @@ class LessonParser:
             raise ValueError('missing audio source')
 
     def get_title(self):
-        return clean_title(self.item)
+        return ' '.join(clean_title(self.item).split())
 
     def get_summary(self):
         keywords = self.item.get('keywords') or ''
