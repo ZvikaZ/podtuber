@@ -53,6 +53,7 @@ PAGE = """<!DOCTYPE html>
   ul {{ list-style: none; margin: 0; padding: 0; }}
   li {{ padding: .9rem 0; border-top: 1px solid var(--line); }}
   .name {{ font-weight: 600; }}
+  .source {{ font-weight: normal; color: var(--muted); }}
   .meta {{ color: var(--muted); font-size: .85rem; }}
   .links {{ margin-top: .35rem; display: flex; gap: 1rem; flex-wrap: wrap; font-size: .95rem; }}
   a {{ color: var(--accent); }}
@@ -80,8 +81,8 @@ PAGE = """<!DOCTYPE html>
 </html>
 """
 
-ITEM = """<li data-name="{name}">
-  <div class="name" dir="auto">{name}</div>
+ITEM = """<li data-name="{name} {source}">
+  <div class="name" dir="auto">{name}{source_label}</div>
   <div class="meta">{meta}</div>
   <div class="links">
     <a href="{app_url}">{open}</a>
@@ -91,13 +92,15 @@ ITEM = """<li data-name="{name}">
 
 
 def write_index(podcasts, path, title, lang='en'):
-    """A page listing the podcasts, for subscribing to them from a phone."""
+    """A page listing the podcasts (each a (podgen Podcast, name, source)), for subscribing to them from a phone."""
     texts = TEXTS.get(lang.split('-')[0], TEXTS['en'])
     items = []
-    for podcast in sorted(podcasts, key=lambda podcast: podcast.name):
+    for podcast, name, source in sorted(podcasts, key=lambda entry: (entry[1], entry[2])):
         latest = max((episode.publication_date for episode in podcast.episodes), default=None)
         items.append(ITEM.format(
-            name=escape(podcast.name),
+            name=escape(name),
+            source=escape(source),
+            source_label=f' <span class="source">[{escape(source)}]</span>' if source else '',
             meta=texts['meta'].format(episodes=len(podcast.episodes),
                                       latest=texts['latest_date'](latest) if latest else '-'),
             url=escape(podcast.feed_url),

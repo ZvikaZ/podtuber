@@ -25,6 +25,15 @@ def audio_info(url):
     return info if info and 'error' not in info else None
 
 
+def is_missing(url):
+    """
+    Whether the mp3 is certainly gone (its server says so). Other failures say nothing about the file: hosts such as
+    Dropbox answer bursts of requests from a data center with an error page, while the file plays fine for listeners.
+    """
+    error = cache.section('audio').get(url, {}).get('error', '')
+    return error.startswith(('HTTP Error 404', 'HTTP Error 410'))
+
+
 def media_details(url):
     """keyword arguments for podgen's Media: the size and duration, when known"""
     info = audio_info(url) or {}

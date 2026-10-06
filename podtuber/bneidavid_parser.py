@@ -11,7 +11,7 @@ from urllib.parse import urlparse, unquote, urlencode, quote
 from podgen import Person, Media
 from pyluach.dates import HebrewDate
 
-from podtuber.audio_info import audio_info, media_details, prefetch
+from podtuber.audio_info import audio_info, is_missing, media_details, prefetch
 from podtuber.cache import cache
 from podtuber.utils import monotonic_dates
 
@@ -172,8 +172,8 @@ class LessonParser:
         self.publication_date = publication_date
 
     def check_availability(self):
-        if not audio_info(lesson_audio_url(self.lesson)):
-            raise ValueError("its audio can't be read")
+        if is_missing(lesson_audio_url(self.lesson)):
+            raise ValueError('its audio file is missing')
 
     def get_title(self):
         return clean_text(self.lesson['title']['rendered'])

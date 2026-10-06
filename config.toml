@@ -50,6 +50,7 @@ url = 'https://bneidavid.org/rav/הרב-יוסף-קלנר/'
 language = 'he-IL'
 category = 'Religion & Spirituality'
 subcategory = 'Judaism'
+image = 'https://static.wixstatic.com/media/413a82_75d0cb10c9e64693a764d1b6a372e49a~mv2.png'
 
 # haravyosefkalner.com: without ?sidra=..., a podcast for every series on the site
 [[podcasts]]

@@ -121,7 +121,9 @@ def main():
     podcasts = [(parser, create_rss(parser, podcast_config, config, output_dir))
                 for parser, podcast_config in parsers]
     cache.save()
-    write_index([podcast for parser, podcast in podcasts if parser in listed], output_dir / 'index.html',
+    # the index names each podcast's source itself, so it uses the names without the told-apart suffix
+    write_index([(podcast, parser.get_name(), getattr(parser, 'get_source_name', lambda: '')())
+                 for parser, podcast in podcasts if parser in listed and podcast.episodes], output_dir / 'index.html',
                 title=config['general'].get('title', 'Podcasts'), lang=config['general'].get('language', 'en'))
     logger.info(f"Created '{output_dir / 'index.html'}'")
 

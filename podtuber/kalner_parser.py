@@ -9,7 +9,7 @@ from urllib.parse import urlparse, parse_qs, quote_plus
 from curl_cffi import requests
 from podgen import Person, Media
 
-from podtuber.audio_info import audio_info, media_details, prefetch
+from podtuber.audio_info import audio_info, is_missing, media_details, prefetch
 from podtuber.hebrew_dates import parse_hebrew_date
 from podtuber.utils import monotonic_dates
 
@@ -71,8 +71,8 @@ class LessonParser:
     def check_availability(self):
         if not self.item.get('audiosource'):
             raise ValueError('missing audio source')
-        if not audio_info(audio_url(self.item)):
-            raise ValueError("its audio can't be read")
+        if is_missing(audio_url(self.item)):
+            raise ValueError('its audio file is missing')
 
     def get_title(self):
         return ' '.join(clean_title(self.item).split())
