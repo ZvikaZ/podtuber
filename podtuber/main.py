@@ -16,7 +16,9 @@ from podgen import Podcast, Person, Category, htmlencode
 from pathvalidate import sanitize_filename
 
 from podtuber.youtube_parser import YoutubePlaylistParser, YoutubeSingleParser
-from podtuber import kalner_parser
+from podtuber import kalner_parser, bneidavid_parser
+from podtuber.cache import cache
+from podtuber.dedup import deduplicate
 from podtuber.index_page import write_index
 
 logging.basicConfig(level=logging.INFO)
@@ -34,10 +36,12 @@ def get_parsers(url):
             return [YoutubeSingleParser(url)]
     elif netloc in ('www.haravyosefkalner.com', 'haravyosefkalner.com'):
         return kalner_parser.get_series_parsers(url)
+    elif netloc in ('www.bneidavid.org', 'bneidavid.org'):
+        return bneidavid_parser.get_series_parsers(url)
     else:
         logger.error(f'Unsupported playlist: {url}\n'
-                     'Currently only YouTube and haravyosefkalner.com are supported. You can open an issue, maybe '
-                     'your parser will be added.')
+                     'Currently only YouTube, haravyosefkalner.com and bneidavid.org are supported. You can open '
+                     'an issue, maybe your parser will be added.')
         sys.exit()
 
 
@@ -50,7 +54,7 @@ def create_rss(parser, podcast_config, config, output_dir):
     rss_filename = f'{feed_id}.rss'
 
     podcast = Podcast()
-    podcast.name = parser.get_name()
+    podcast.name = parser.get_name() + getattr(parser, 'name_suffix', '')  # set when told apart from a duplicate
     podcast.description = parser.get_description()
     podcast.website = parser.get_website()
     podcast.explicit = False  # will be updated if one of the episodes is True
@@ -107,12 +111,18 @@ def main():
         sys.exit()
     output_dir = Path(config['general'].get('output_dir', '.'))
     output_dir.mkdir(parents=True, exist_ok=True)
-    podcasts = []
-    for podcast_config in config.get('podcasts'):
-        for parser in get_parsers(podcast_config['url']):
-            podcasts.append(create_rss(parser, podcast_config, config, output_dir))
-    write_index(podcasts, output_dir / 'index.html', title=config['general'].get('title', 'Podcasts'),
-                lang=config['general'].get('language', 'en'))
+    cache.load(output_dir, config['general']['base_url'])
+    parsers = [(parser, podcast_config) for podcast_config in config.get('podcasts')
+               for parser in get_parsers(podcast_config['url'])]
+    cache.save()
+    # duplicates are only left out of the index: their feeds are still written, so that a subscription never
+    # goes stale when the other copy of a series becomes the more complete one
+    listed = deduplicate([parser for parser, _ in parsers])
+    podcasts = [(parser, create_rss(parser, podcast_config, config, output_dir))
+                for parser, podcast_config in parsers]
+    cache.save()
+    write_index([podcast for parser, podcast in podcasts if parser in listed], output_dir / 'index.html',
+                title=config['general'].get('title', 'Podcasts'), lang=config['general'].get('language', 'en'))
     logger.info(f"Created '{output_dir / 'index.html'}'")
 
 

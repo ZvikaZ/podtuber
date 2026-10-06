@@ -2,7 +2,11 @@ podtuber
 ========
 
 Simple Python application to create podcast `.rss` files from YouTube playlists,
-and from the recorded lessons on [haravyosefkalner.com](https://www.haravyosefkalner.com/shiurim).
+and from the recorded lessons on [haravyosefkalner.com](https://www.haravyosefkalner.com/shiurim)
+and [bneidavid.org](https://bneidavid.org).
+
+A series published on several sites becomes a single podcast when the sites have the same lessons
+(the same dates and durations), or when one has all of the other's lessons and more.
 
 Installation
 ------------
@@ -43,7 +47,9 @@ uv run podtuber
 
 Publishing with GitHub Pages
 ----------------------------
-`config.toml` writes the feeds, and an `index.html` listing them, to `output_dir`.
+`config.toml` writes the feeds, and an `index.html` listing them, to `output_dir`,
+along with a `cache.json` of what doesn't change between runs (such as each lesson's audio and duration),
+which the next run reads back from `base_url`, so it only fetches what's new.
 The `Publish podcasts` workflow in this repository runs `podtuber` daily (and on every push),
 and deploys that folder to GitHub Pages, at `base_url`.
 To use it in a fork, set the repository's *Settings → Pages → Source* to *GitHub Actions*, and update `base_url`.

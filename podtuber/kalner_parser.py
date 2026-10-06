@@ -2,17 +2,21 @@ import hashlib
 import logging
 import re
 import time
-import warnings
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import cache
 from urllib.parse import urlparse, parse_qs, quote_plus
 
 from curl_cffi import requests
 from podgen import Person, Media
 
+from podtuber.audio_info import audio_info, media_details, prefetch
+from podtuber.hebrew_dates import parse_hebrew_date
+from podtuber.utils import monotonic_dates
+
 logger = logging.getLogger(__name__)
 
 SITE_URL = 'https://www.haravyosefkalner.com'
+SOURCE_NAME = 'אתר הרב'
 RAV_NAME = 'הרב יוסף קלנר'
 LOGO_URL = 'https://static.wixstatic.com/media/413a82_75d0cb10c9e64693a764d1b6a372e49a~mv2.png'
 
@@ -54,6 +58,7 @@ def get_series_parsers(url):
         if wanted[0] not in subjects:
             raise ValueError(f"Unknown series '{wanted[0]}' in {url}")
         subjects = wanted
+    prefetch([audio_url(item) for item in items if item['subject'] in subjects and item.get('audiosource')])
     return [KalnerSeriesParser(subject, [item for item in items if item['subject'] == subject])
             for subject in subjects]
 
@@ -66,6 +71,8 @@ class LessonParser:
     def check_availability(self):
         if not self.item.get('audiosource'):
             raise ValueError('missing audio source')
+        if not audio_info(audio_url(self.item)):
+            raise ValueError("its audio can't be read")
 
     def get_title(self):
         return ' '.join(clean_title(self.item).split())
@@ -83,12 +90,8 @@ class LessonParser:
         return False
 
     def get_media(self, base_url, series_title):
-        # raw=1 makes Dropbox serve audio/mpeg inline, rather than a dl=1 attachment download
-        url = re.sub(r'\bdl=1\b', 'raw=1', self.item['audiosource'])
-        with warnings.catch_warnings():
-            # the size is optional for podcast apps, and not worth a request per lesson on every run
-            warnings.filterwarnings('ignore', message='Size is set to 0')
-            return Media(url=url, type='audio/mpeg')
+        url = audio_url(self.item)
+        return Media(url=url, type='audio/mpeg', **media_details(url))
 
     def get_id(self):
         return self.item['_id']
@@ -112,6 +115,14 @@ class KalnerSeriesParser:
         # the rss filename must never change once subscribed, and Hebrew titles make awkward URLs
         return 'kalner-' + hashlib.sha1(self.subject.encode()).hexdigest()[:8]
 
+    def get_source_name(self):
+        return SOURCE_NAME
+
+    def get_recordings(self):
+        return [(parse_hebrew_date(item.get('date') or ''), (audio_info(audio_url(item)) or {}).get('duration'),
+                 (audio_info(audio_url(item)) or {}).get('size'))
+                for item in self.items]
+
     def get_description(self):
         return f'שיעורי {RAV_NAME} בסדרה "{self.subject}", מתוך {SITE_URL}'
 
@@ -128,8 +139,13 @@ class KalnerSeriesParser:
         return RAV_NAME
 
     def get_episodes(self):
-        for item, publication_date in zip(self.items, monotonic_dates(self.items)):
+        for item, publication_date in zip(self.items, monotonic_dates([upload_date(item) for item in self.items])):
             yield LessonParser(item, publication_date)
+
+
+def audio_url(item):
+    # raw=1 makes Dropbox serve audio/mpeg inline, rather than a dl=1 attachment download
+    return re.sub(r'\bdl=1\b', 'raw=1', item['audiosource'])
 
 
 def clean_title(item):
@@ -172,20 +188,6 @@ def lesson_number(item):
 def upload_date(item):
     # whole seconds, as that's all an RSS date can express
     return datetime.fromisoformat(item['_createdDate']['$date'].replace('Z', '+00:00')).replace(microsecond=0)
-
-
-def monotonic_dates(items):
-    """
-    Podcast apps order episodes by date, not by their order in the feed. Keep the upload dates, but push each one
-    just past its predecessor's, so lessons reordered by number keep that order.
-    """
-    dates = []
-    for item in items:
-        date = upload_date(item)
-        if dates and date <= dates[-1]:
-            date = dates[-1] + timedelta(minutes=1)
-        dates.append(date)
-    return dates
 
 
 def sort_lessons(items):

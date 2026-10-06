@@ -40,6 +40,17 @@ language = 'he'
 # category = 'Religion & Spirituality'
 # subcategory = 'Judaism'
 
+# a series found on several sites is published once, when the sites have the same lessons, or when one has all of
+# the other's lessons and more; when the lessons are identical, the one listed first here is kept
+
+# bneidavid.org: a rav's page is a podcast per series of his; a series' page (https://bneidavid.org/series/...)
+# is that series alone
+[[podcasts]]
+url = 'https://bneidavid.org/rav/הרב-יוסף-קלנר/'
+language = 'he-IL'
+category = 'Religion & Spirituality'
+subcategory = 'Judaism'
+
 # haravyosefkalner.com: without ?sidra=..., a podcast for every series on the site
 [[podcasts]]
 url = 'https://www.haravyosefkalner.com/shiurim'
