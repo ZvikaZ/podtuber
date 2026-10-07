@@ -6,9 +6,12 @@
 # TODO podcastindex.org doesn't play, or download
 # TODO Mac's podcast takes 30 minutes to start playing (Daniel's report in Discord)
 
+import json
 import logging
 import sys
 import tomli
+import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -49,13 +52,48 @@ def get_parsers(url):
         sys.exit()
 
 
+def feed_id(parser):
+    # parsers whose titles make poor URLs provide their own stable feed id
+    if hasattr(parser, 'get_feed_id'):
+        return parser.get_feed_id()
+    return sanitize_filename(parser.get_name()).replace(' ', '_')
+
+
+def read_sources(config, output_dir):
+    """
+    The parsers of all the podcasts. A source that fails (say, a site that's down, or that refuses this server)
+    doesn't stop the others; its feeds from the previous run are published again, so subscriptions keep working.
+    """
+    published = cache.section('feeds')  # each source's feed ids, as last published
+    parsers, failures = [], {}
+    for podcast_config in config.get('podcasts'):
+        url = podcast_config['url']
+        try:
+            found = get_parsers(url)
+        except Exception as err:
+            logger.exception(f"Couldn't read {url}")
+            failures[url] = f'{type(err).__name__}: {err}'
+            keep_published_feeds(published.get(url, []), config['general']['base_url'], output_dir)
+            continue
+        published[url] = [feed_id(parser) for parser in found]
+        parsers += [(parser, podcast_config) for parser in found]
+    return parsers, failures
+
+
+def keep_published_feeds(feed_ids, base_url, output_dir):
+    for feed in feed_ids:
+        try:
+            with urllib.request.urlopen(f'{base_url.rstrip("/")}/{feed}.rss', timeout=60) as response:
+                (output_dir / f'{feed}.rss').write_bytes(response.read())
+        except Exception as err:
+            logger.warning(f"Couldn't keep {feed}.rss: {err}")
+
+
 def create_rss(parser, podcast_config, config, output_dir):
     logger.info(f'Handling playlist {parser.get_name()}')
 
     sanitized_title = sanitize_filename(parser.get_name()).replace(' ', '_')
-    # parsers whose titles make poor URLs provide their own stable feed id
-    feed_id = parser.get_feed_id() if hasattr(parser, 'get_feed_id') else sanitized_title
-    rss_filename = f'{feed_id}.rss'
+    rss_filename = f'{feed_id(parser)}.rss'
 
     podcast = Podcast()
     podcast.name = parser.get_name() + getattr(parser, 'name_suffix', '')  # set when told apart from a duplicate
@@ -116,8 +154,7 @@ def main():
     output_dir = Path(config['general'].get('output_dir', '.'))
     output_dir.mkdir(parents=True, exist_ok=True)
     cache.load(output_dir, config['general']['base_url'])
-    parsers = [(parser, podcast_config) for podcast_config in config.get('podcasts')
-               for parser in get_parsers(podcast_config['url'])]
+    parsers, failures = read_sources(config, output_dir)
     cache.save()
     # duplicates are only left out of the index: their feeds are still written, so that a subscription never
     # goes stale when the other copy of a series becomes the more complete one
@@ -130,6 +167,11 @@ def main():
                  for parser, podcast in podcasts if parser in listed and podcast.episodes], output_dir / 'index.html',
                 title=config['general'].get('title', 'Podcasts'), lang=config['general'].get('language', 'en'))
     logger.info(f"Created '{output_dir / 'index.html'}'")
+    # published alongside, so a run's problems can be seen without access to its log
+    (output_dir / 'status.json').write_text(json.dumps({
+        'updated': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+        'failures': failures,
+    }, ensure_ascii=False, indent=1), encoding='utf8')
 
 
 if __name__ == '__main__':
