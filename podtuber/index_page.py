@@ -76,7 +76,7 @@ PAGE = """<!DOCTYPE html>
           color: inherit; background: transparent; border: 1px solid var(--line); border-radius: .5rem; }}
   ul {{ list-style: none; margin: 0; padding: 0; }}
   li {{ padding: .9rem 0; border-top: 1px solid var(--line); scroll-margin-top: 1rem; }}
-  li:target {{ background: color-mix(in srgb, var(--accent) 12%, transparent); }}
+  li:target, li.chosen {{ background: color-mix(in srgb, var(--accent) 12%, transparent); }}
   #lessons li {{ padding: .6rem 0; }}
   .name {{ font-weight: 600; }}
   .source {{ font-weight: normal; color: var(--muted); }}
@@ -192,19 +192,42 @@ function showLesson([series, title, description, date, minutes], query) {
   if (minutes) meta.push(TEXTS.minutes.replace('{count}', minutes));
   const link = element('a', TEXTS.to_series);
   link.href = '#' + feedId;
-  link.onclick = () => { input.value = ''; search(); };  // show the whole list, scrolled to the series
+  link.onclick = event => {  // the whole list, scrolled to the series, as a new page in the history
+    event.preventDefault();
+    history.pushState(null, '', location.pathname + '#' + feedId);
+    showAddress();
+  };
   const links = element('div', null, 'links');
   links.append(link);
   li.append(element('div', meta.join(' · '), 'meta'), links);
   return li;
 }
 
-async function search() {
+// typing changes the address in place (?q=...), so a search can be shared, and is there when going back to it
+function typed() {
   const query = input.value.trim();
   const url = new URL(location.href);
+  url.hash = '';
   if (query) url.searchParams.set('q', query); else url.searchParams.delete('q');
   history.replaceState(null, '', url);
+  search();
+}
 
+// what the address says: a search (?q=...), or a podcast to scroll to (#...)
+function showAddress() {
+  const url = new URL(location.href);
+  input.value = url.searchParams.get('q') || '';
+  search();
+  for (const li of seriesItems) li.classList.remove('chosen');
+  const chosen = url.hash && document.getElementById(decodeURIComponent(url.hash.slice(1)));
+  if (chosen) {
+    chosen.classList.add('chosen');
+    chosen.scrollIntoView();
+  }
+}
+
+async function search() {
+  const query = input.value.trim();
   const matches = matcher(query);
   let seriesFound = 0;
   for (const li of seriesItems) {
@@ -226,13 +249,9 @@ async function search() {
     found.length > LIMIT ? TEXTS.more.replace('{count}', found.length - LIMIT) : '';
 }
 
-// the search is kept in the address (?q=...), so it can be shared, and is restored when opened
-input.oninput = search;
-const query = new URL(location.href).searchParams.get('q');
-if (query) {
-  input.value = query;
-  search();
-}
+input.oninput = typed;
+window.onpopstate = showAddress;  // back and forward
+if (location.search || location.hash) showAddress();
 """
 
 ITEM = """<li id="{feed_id}" data-name="{name} {source}">
