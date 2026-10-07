@@ -1,15 +1,12 @@
 import html
-import json
 import logging
 import time
-import urllib.request
-from urllib.parse import urlencode
+
+from curl_cffi import requests
 
 from podtuber.cache import cache
 
 logger = logging.getLogger(__name__)
-
-USER_AGENT = 'Mozilla/5.0 (compatible; podtuber)'
 
 
 class WordPressSite:
@@ -17,12 +14,13 @@ class WordPressSite:
 
     def __init__(self, url):
         self.url = url.rstrip('/')
+        # some sites' firewalls (Cloudflare, say) turn away what doesn't look like a browser
+        self.session = requests.Session(impersonate='chrome')
 
     def api(self, path, params):
-        request = urllib.request.Request(f'{self.url}/wp-json/wp/v2/{path}?{urlencode(params)}',
-                                         headers={'User-Agent': USER_AGENT})
-        with urllib.request.urlopen(request, timeout=60) as response:
-            return json.load(response), int(response.headers.get('X-WP-TotalPages', 1))
+        response = self.session.get(f'{self.url}/wp-json/wp/v2/{path}', params=params, timeout=60)
+        response.raise_for_status()
+        return response.json(), int(response.headers.get('X-WP-TotalPages', 1))
 
     def get_all(self, path, params):
         items, page, pages = [], 1, 1
@@ -54,9 +52,9 @@ class WordPressSite:
             logger.info(f'Reading {len(todo)} lesson pages of {self.url}')
         for n, lesson in enumerate(todo, 1):
             try:
-                request = urllib.request.Request(lesson['link'], headers={'User-Agent': USER_AGENT})
-                with urllib.request.urlopen(request, timeout=60) as response:
-                    page = html.unescape(response.read().decode('utf8'))
+                response = self.session.get(lesson['link'], timeout=60)
+                response.raise_for_status()
+                page = html.unescape(response.text)
             except Exception as err:
                 logger.warning(f"Couldn't read {lesson['link']} (will retry next time): {err}")
                 continue
