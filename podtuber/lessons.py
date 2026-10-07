@@ -21,6 +21,14 @@ class Lesson:
     order: int = 0  # breaks ties between lessons of the same date, e.g. the site's own id
 
 
+# words that say nothing about a lesson: 'שיעור מספר 1', 'שיעור שני', 'פרק ד – המשך'
+GENERIC_WORD = re.compile(r"(שיעור|מספר|חלק|פסקה|פסקאות|פרק|המשך|ראשון|שני|שלישי|רביעי|חמישי|ו|[א-ת]['’]?|\d+|[-–,.:()'’\"״]+)")
+
+
+def is_dull(title):
+    return all(GENERIC_WORD.fullmatch(word) for word in title.split())
+
+
 def clean_text(text):
     # some sites write gershayim as two apostrophes: תשע''ז
     return ' '.join(html.unescape(text).replace("''", '"').split())
@@ -58,16 +66,19 @@ def sort_lessons(lessons, number_pattern=None):
 
 
 class LessonParser:
-    def __init__(self, lesson, rav_name, publication_date):
+    def __init__(self, lesson, rav_name, publication_date, series_name):
         self.lesson = lesson
         self.rav_name = rav_name
         self.publication_date = publication_date
+        self.series_name = series_name
 
     def check_availability(self):
         if is_missing(self.lesson.audio_url):
             raise ValueError('its audio file is missing')
 
     def get_title(self):
+        if is_dull(self.lesson.title):  # a title such as 'שיעור מספר 1' is named after its series (or date)
+            return f'{self.series_name} - {self.lesson.title or self.get_summary()}'
         return self.lesson.title
 
     def get_summary(self):
@@ -138,4 +149,4 @@ class SeriesParser:
     def get_episodes(self):
         dates = monotonic_dates([lesson.date.replace(microsecond=0) for lesson in self.lessons])
         for lesson, publication_date in zip(self.lessons, dates):
-            yield LessonParser(lesson, self.rav_name, publication_date)
+            yield LessonParser(lesson, self.rav_name, publication_date, self.name)

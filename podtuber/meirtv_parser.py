@@ -8,7 +8,8 @@ from podtuber.cache import cache
 from podtuber.lessons import Lesson, SeriesParser, clean_text, strip_rav_name
 from podtuber.wordpress import WordPressSite
 
-SITE = WordPressSite('https://meirtv.com')
+# its firewall refuses GitHub's servers, so runs there use what a run elsewhere saved (see refresh-snapshots.sh)
+SITE = WordPressSite('https://meirtv.com', snapshot='snapshots/meirtv.json', media_host='mp3.meirtv.co.il')
 SOURCE_NAME = 'ערוץ מאיר'
 LOGO_URL = f'{SITE.url}/wp-content/uploads/2021/02/cropped-logo2-270x270.png'
 CACHE_SECTION = 'meirtv:audio'

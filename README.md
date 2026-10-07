@@ -54,5 +54,8 @@ The `Publish podcasts` workflow in this repository runs `podtuber` daily (and on
 and deploys that folder to GitHub Pages, at `base_url`.
 To use it in a fork, set the repository's *Settings → Pages → Source* to *GitHub Actions*, and update `base_url`.
 
+Sites that refuse GitHub's servers (Meir TV) are read from `snapshots/` there;
+run `./refresh-snapshots.sh` on another computer to refresh and push them.
+
 GitHub pauses scheduled workflows in repositories with no activity for 60 days,
 so the workflow re-enables itself on every run, which resets that timer.

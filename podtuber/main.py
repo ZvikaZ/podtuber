@@ -6,6 +6,7 @@
 # TODO podcastindex.org doesn't play, or download
 # TODO Mac's podcast takes 30 minutes to start playing (Daniel's report in Discord)
 
+import argparse
 import json
 import logging
 import sys
@@ -23,6 +24,7 @@ from podtuber import kalner_parser, bneidavid_parser, meirtv_parser, hakotel_par
 from podtuber.cache import cache
 from podtuber.dedup import deduplicate
 from podtuber.index_page import write_index
+from podtuber.wordpress import save_snapshots
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('podtuber')
@@ -140,6 +142,10 @@ def create_rss(parser, podcast_config, config, output_dir):
 
 
 def main():
+    arguments = argparse.ArgumentParser(description='Create podcast .rss files, as config.toml says')
+    arguments.add_argument('--snapshot', action='store_true',
+                           help="also save snapshots of the sites that some servers can't read (see config.toml)")
+    snapshot = arguments.parse_args().snapshot
     try:
         with open("config.toml", mode="rb") as fp:
             config = tomli.load(fp)
@@ -156,6 +162,8 @@ def main():
     cache.load(output_dir, config['general']['base_url'])
     parsers, failures = read_sources(config, output_dir)
     cache.save()
+    if snapshot:
+        save_snapshots()
     # duplicates are only left out of the index: their feeds are still written, so that a subscription never
     # goes stale when the other copy of a series becomes the more complete one
     listed = deduplicate([parser for parser, _ in parsers])

@@ -53,7 +53,8 @@ subcategory = 'Judaism'
 image = 'https://static.wixstatic.com/media/413a82_75d0cb10c9e64693a764d1b6a372e49a~mv2.png'
 
 # meirtv.com: a rabbi's page is a podcast per series of his (and one of his lessons in no series);
-# a series' page (https://meirtv.com/shiurim-series/...) is that series alone
+# a series' page (https://meirtv.com/shiurim-series/...) is that series alone.
+# its firewall refuses GitHub's servers, so GitHub's runs use snapshots/meirtv.json; refresh-snapshots.sh updates it
 [[podcasts]]
 url = 'https://meirtv.com/rabbis/3788/'
 language = 'he-IL'
