@@ -1,8 +1,13 @@
+import html
+import json
+import re
 from datetime import datetime, timezone
 from html import escape
 from urllib.parse import urlparse
 
 from pyluach.dates import HebrewDate
+
+LESSONS_FILENAME = 'lessons.json'
 
 # the page's texts, by the index page's language (config.toml's [general] language); English for any other
 TEXTS = {
@@ -11,28 +16,42 @@ TEXTS = {
         'latest_date': lambda date: date.strftime('%Y-%m-%d'),
         'updated_date': lambda date: date.strftime('%Y-%m-%d %H:%M UTC'),
         'summary': '{count} podcasts &middot; updated {updated}',
-        'filter': 'Filter&hellip;',
-        'filter_label': 'Filter podcasts',
+        'filter': 'Search a podcast or an episode&hellip;',
+        'filter_label': 'Search podcasts and episodes',
         'meta': '{episodes} episodes &middot; latest {latest}',
         'open': 'Open in podcast app',
         'copy': 'Copy RSS link',
         'copied': 'Copied',
         'share': 'Share',
         'link_copied': 'Link copied',
+        'script': {
+            'lessons': 'Episodes ({count})',
+            'to_series': 'To the podcast',
+            'minutes': '{count} min',
+            'more': 'and {count} more; a more specific search will narrow them down',
+            'nothing': 'Nothing found',
+        },
     },
     'he': {
         'dir': 'rtl',
         'latest_date': lambda date: HebrewDate.from_pydate(date.date()).hebrew_date_string(),  # 'ל׳ שבט תשפ״ג'
         'updated_date': lambda date: HebrewDate.from_pydate(date.date()).hebrew_date_string(),
         'summary': '{count} פודקאסטים &middot; עודכן {updated}',
-        'filter': 'סינון&hellip;',
-        'filter_label': 'סינון פודקאסטים',
+        'filter': 'חיפוש סדרה או שיעור&hellip;',
+        'filter_label': 'חיפוש סדרות ושיעורים',
         'meta': '{episodes} פרקים &middot; אחרון {latest}',
         'open': 'פתיחה באפליקציית פודקאסטים',
         'copy': 'העתקת קישור RSS',
         'copied': 'הועתק',
         'share': 'שיתוף',
         'link_copied': 'הקישור הועתק',
+        'script': {
+            'lessons': 'שיעורים ({count})',
+            'to_series': 'לסדרה',
+            'minutes': "{count} דק'",
+            'more': 'ועוד {count} שיעורים; חיפוש מדויק יותר יצמצם אותם',
+            'nothing': 'לא נמצא דבר',
+        },
     },
 }
 
@@ -51,12 +70,14 @@ PAGE = """<!DOCTYPE html>
          font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }}
   main {{ max-width: 44rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }}
   h1 {{ font-size: 1.5rem; margin: 0 0 .25rem; }}
+  h2 {{ font-size: 1.1rem; margin: 2rem 0 .5rem; }}
   .note {{ color: var(--muted); margin: 0 0 1.5rem; font-size: .9rem; }}
   input {{ width: 100%; box-sizing: border-box; padding: .6rem .75rem; margin-bottom: 1rem; font: inherit;
           color: inherit; background: transparent; border: 1px solid var(--line); border-radius: .5rem; }}
   ul {{ list-style: none; margin: 0; padding: 0; }}
   li {{ padding: .9rem 0; border-top: 1px solid var(--line); scroll-margin-top: 1rem; }}
   li:target {{ background: color-mix(in srgb, var(--accent) 12%, transparent); }}
+  #lessons li {{ padding: .6rem 0; }}
   .name {{ font-weight: 600; }}
   .source {{ font-weight: normal; color: var(--muted); }}
   .meta {{ color: var(--muted); font-size: .85rem; }}
@@ -71,49 +92,128 @@ PAGE = """<!DOCTYPE html>
 <h1>{title}</h1>
 <p class="note">{summary}</p>
 <input type="search" placeholder="{filter}" aria-label="{filter_label}">
-<ul>
+<ul id="series">
 {items}
 </ul>
+<section id="lessons" hidden>
+  <h2></h2>
+  <ul></ul>
+  <p class="note"></p>
+</section>
 </main>
 <script>
-  function flash(button, text) {{
-    const original = button.textContent;
-    button.textContent = text;
-    setTimeout(() => button.textContent = original, 1500);
-  }}
-  for (const button of document.querySelectorAll('button[data-url]'))
-    button.onclick = () => navigator.clipboard.writeText(button.dataset.url).then(() => flash(button, '{copied}'));
-
-  // a series' own link is this page, scrolled to it; phones offer their share menu
-  for (const button of document.querySelectorAll('button[data-share]'))
-    button.onclick = () => {{
-      const url = new URL(location.pathname, location.origin);
-      url.hash = button.dataset.share;
-      if (navigator.share)
-        navigator.share({{title: button.dataset.title, url: url.href}}).catch(() => {{}});
-      else
-        navigator.clipboard.writeText(url.href).then(() => flash(button, '{link_copied}'));
-    }};
-
-  // the filter is kept in the address (?q=...), so a search can be shared, and is restored when opened
-  const input = document.querySelector('input[type=search]');
-  function filter() {{
-    const query = input.value.trim();
-    for (const li of document.querySelectorAll('li'))
-      li.hidden = !li.dataset.name.includes(query);
-    const url = new URL(location.href);
-    if (query) url.searchParams.set('q', query); else url.searchParams.delete('q');
-    history.replaceState(null, '', url);
-  }}
-  input.oninput = filter;
-  const query = new URL(location.href).searchParams.get('q');
-  if (query) {{
-    input.value = query;
-    filter();
-  }}
+const TEXTS = {texts};
+{script}
 </script>
 </body>
 </html>
+"""
+
+# a plain string, not a template: the page's texts reach it as TEXTS
+SCRIPT = r"""
+function flash(button, text) {
+  const original = button.textContent;
+  button.textContent = text;
+  setTimeout(() => button.textContent = original, 1500);
+}
+for (const button of document.querySelectorAll('button[data-url]'))
+  button.onclick = () => navigator.clipboard.writeText(button.dataset.url).then(() => flash(button, TEXTS.copied));
+
+// a series' own link is this page, scrolled to it; phones offer their share menu
+for (const button of document.querySelectorAll('button[data-share]'))
+  button.onclick = () => {
+    const url = new URL(location.pathname, location.origin);
+    url.hash = button.dataset.share;
+    if (navigator.share)
+      navigator.share({title: button.dataset.title, url: url.href}).catch(() => {});
+    else
+      navigator.clipboard.writeText(url.href).then(() => flash(button, TEXTS.link_copied));
+  };
+
+// Hebrew-aware matching: every word searched for must start a word in the text, perhaps after prefixes
+// (ו, ה, ב, ל, מ, ש, כ), so 'כוזרי' finds 'הכוזרי' but 'פורים' doesn't find 'הכיפורים'; and gershayim, quotes
+// and niqqud don't count, so 'עין איה' finds 'עין אי"ה'
+const normalize = text => text.replace(/[֑-ׇ]/g, '').replace(/["'`״׳’‘”“]/g, '').toLowerCase();
+function matcher(query) {
+  const patterns = normalize(query).split(/\s+/).filter(Boolean).map(word =>
+    new RegExp('(^|[^א-תa-z0-9])[ובהלמשכ]{0,3}' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  return text => { const normalized = normalize(text); return patterns.every(p => p.test(normalized)); };
+}
+
+const input = document.querySelector('input[type=search]');
+const seriesItems = [...document.querySelectorAll('#series > li')];
+const lessonsSection = document.getElementById('lessons');
+const LIMIT = 100;
+let lessons = null;  // the search index, loaded once something is searched for
+
+async function loadLessons() {
+  if (!lessons) {
+    try {
+      lessons = await (await fetch('lessons.json')).json();
+    } catch {
+      lessons = {series: [], lessons: []};
+    }
+  }
+  return lessons;
+}
+
+function element(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
+function showLesson([series, title, , date, minutes]) {
+  const [feedId, seriesName, source] = lessons.series[series];
+  const li = element('li');
+  const name = element('div', title, 'name');
+  name.dir = 'auto';
+  const meta = [seriesName + (source ? ` [${source}]` : ''), date];
+  if (minutes) meta.push(TEXTS.minutes.replace('{count}', minutes));
+  const link = element('a', TEXTS.to_series);
+  link.href = '#' + feedId;
+  link.onclick = () => { input.value = ''; search(); };  // show the whole list, scrolled to the series
+  const links = element('div', null, 'links');
+  links.append(link);
+  li.append(name, element('div', meta.join(' · '), 'meta'), links);
+  return li;
+}
+
+async function search() {
+  const query = input.value.trim();
+  const url = new URL(location.href);
+  if (query) url.searchParams.set('q', query); else url.searchParams.delete('q');
+  history.replaceState(null, '', url);
+
+  const matches = matcher(query);
+  let seriesFound = 0;
+  for (const li of seriesItems) {
+    li.hidden = query && !matches(li.dataset.name);
+    seriesFound += !li.hidden;
+  }
+  if (query.length < 2) {
+    lessonsSection.hidden = true;
+    return;
+  }
+  const {lessons: all} = await loadLessons();
+  if (input.value.trim() !== query) return;  // typed on in the meantime
+  const found = all.filter(([, title, text]) => matches(title + ' ' + text));
+  lessonsSection.hidden = false;
+  lessonsSection.querySelector('h2').textContent = found.length || seriesFound
+    ? TEXTS.lessons.replace('{count}', found.length) : TEXTS.nothing;
+  lessonsSection.querySelector('ul').replaceChildren(...found.slice(0, LIMIT).map(showLesson));
+  lessonsSection.querySelector('.note').textContent =
+    found.length > LIMIT ? TEXTS.more.replace('{count}', found.length - LIMIT) : '';
+}
+
+// the search is kept in the address (?q=...), so it can be shared, and is restored when opened
+input.oninput = search;
+const query = new URL(location.href).searchParams.get('q');
+if (query) {
+  input.value = query;
+  search();
+}
 """
 
 ITEM = """<li id="{feed_id}" data-name="{name} {source}">
@@ -128,10 +228,14 @@ ITEM = """<li id="{feed_id}" data-name="{name} {source}">
 
 
 def write_index(podcasts, path, title, lang='en'):
-    """A page listing the podcasts (each a (podgen Podcast, name, source)), for subscribing to them from a phone."""
+    """
+    A page listing the podcasts (each a (podgen Podcast, name, source)), for subscribing to them from a phone,
+    and searching them and their episodes.
+    """
     texts = TEXTS.get(lang.split('-')[0], TEXTS['en'])
-    items = []
+    items, series, lessons = [], [], []
     for podcast, name, source in sorted(podcasts, key=lambda entry: (entry[1], entry[2])):
+        feed_id = podcast.feed_url.rsplit('/', 1)[-1].removesuffix('.rss')
         latest = max((episode.publication_date for episode in podcast.episodes), default=None)
         items.append(ITEM.format(
             name=escape(name),
@@ -141,18 +245,35 @@ def write_index(podcasts, path, title, lang='en'):
                                       latest=texts['latest_date'](latest) if latest else '-'),
             url=escape(podcast.feed_url),
             app_url=escape(podcast_app_url(podcast.feed_url)),
-            feed_id=escape(podcast.feed_url.rsplit('/', 1)[-1].removesuffix('.rss')),
+            feed_id=escape(feed_id),
             open=texts['open'],
             copy=texts['copy'],
             share=texts['share'],
         ))
+        series.append([feed_id, name, source])
+        lessons += [search_entry(len(series) - 1, episode, texts) for episode in podcast.episodes]
+
+    (path.parent / LESSONS_FILENAME).write_text(
+        json.dumps({'series': series, 'lessons': lessons}, ensure_ascii=False, separators=(',', ':')),
+        encoding='utf8')
     updated = texts['updated_date'](datetime.now(timezone.utc))
+    script_texts = {**texts['script'], 'copied': texts['copied'], 'link_copied': texts['link_copied']}
     path.write_text(PAGE.format(title=escape(title), lang=escape(lang), dir=texts['dir'],
                                 summary=texts['summary'].format(count=len(items), updated=updated),
                                 filter=texts['filter'], filter_label=texts['filter_label'],
-                                copied=texts['copied'], link_copied=texts['link_copied'],
-                                items='\n'.join(items)),
+                                items='\n'.join(items),
+                                texts=json.dumps(script_texts, ensure_ascii=False), script=SCRIPT),
                     encoding='utf8')
+
+
+def search_entry(series, episode, texts):
+    """[series index, title, text to search besides the title, date, minutes]"""
+    date = texts['latest_date'](episode.publication_date)
+    description = ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', episode.summary or '')).split())
+    if description == date:  # many episodes' description is only their date
+        description = ''
+    duration = episode.media.duration if episode.media else None
+    return [series, episode.title or '', description, date, round(duration.total_seconds() / 60) if duration else None]
 
 
 def podcast_app_url(feed_url):
