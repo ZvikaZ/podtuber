@@ -17,6 +17,8 @@ TEXTS = {
         'open': 'Open in podcast app',
         'copy': 'Copy RSS link',
         'copied': 'Copied',
+        'share': 'Share',
+        'link_copied': 'Link copied',
     },
     'he': {
         'dir': 'rtl',
@@ -29,6 +31,8 @@ TEXTS = {
         'open': 'פתיחה באפליקציית פודקאסטים',
         'copy': 'העתקת קישור RSS',
         'copied': 'הועתק',
+        'share': 'שיתוף',
+        'link_copied': 'הקישור הועתק',
     },
 }
 
@@ -51,7 +55,8 @@ PAGE = """<!DOCTYPE html>
   input {{ width: 100%; box-sizing: border-box; padding: .6rem .75rem; margin-bottom: 1rem; font: inherit;
           color: inherit; background: transparent; border: 1px solid var(--line); border-radius: .5rem; }}
   ul {{ list-style: none; margin: 0; padding: 0; }}
-  li {{ padding: .9rem 0; border-top: 1px solid var(--line); }}
+  li {{ padding: .9rem 0; border-top: 1px solid var(--line); scroll-margin-top: 1rem; }}
+  li:target {{ background: color-mix(in srgb, var(--accent) 12%, transparent); }}
   .name {{ font-weight: 600; }}
   .source {{ font-weight: normal; color: var(--muted); }}
   .meta {{ color: var(--muted); font-size: .85rem; }}
@@ -65,28 +70,59 @@ PAGE = """<!DOCTYPE html>
 <main>
 <h1>{title}</h1>
 <p class="note">{summary}</p>
-<input type="search" placeholder="{filter}" aria-label="{filter_label}"
-       oninput="for (const li of document.querySelectorAll('li'))
-                  li.hidden = !li.dataset.name.includes(this.value.trim())">
+<input type="search" placeholder="{filter}" aria-label="{filter_label}">
 <ul>
 {items}
 </ul>
 </main>
 <script>
+  function flash(button, text) {{
+    const original = button.textContent;
+    button.textContent = text;
+    setTimeout(() => button.textContent = original, 1500);
+  }}
   for (const button of document.querySelectorAll('button[data-url]'))
-    button.onclick = () => navigator.clipboard.writeText(button.dataset.url)
-      .then(() => {{ button.textContent = '{copied}'; setTimeout(() => button.textContent = '{copy}', 1500); }});
+    button.onclick = () => navigator.clipboard.writeText(button.dataset.url).then(() => flash(button, '{copied}'));
+
+  // a series' own link is this page, scrolled to it; phones offer their share menu
+  for (const button of document.querySelectorAll('button[data-share]'))
+    button.onclick = () => {{
+      const url = new URL(location.pathname, location.origin);
+      url.hash = button.dataset.share;
+      if (navigator.share)
+        navigator.share({{title: button.dataset.title, url: url.href}}).catch(() => {{}});
+      else
+        navigator.clipboard.writeText(url.href).then(() => flash(button, '{link_copied}'));
+    }};
+
+  // the filter is kept in the address (?q=...), so a search can be shared, and is restored when opened
+  const input = document.querySelector('input[type=search]');
+  function filter() {{
+    const query = input.value.trim();
+    for (const li of document.querySelectorAll('li'))
+      li.hidden = !li.dataset.name.includes(query);
+    const url = new URL(location.href);
+    if (query) url.searchParams.set('q', query); else url.searchParams.delete('q');
+    history.replaceState(null, '', url);
+  }}
+  input.oninput = filter;
+  const query = new URL(location.href).searchParams.get('q');
+  if (query) {{
+    input.value = query;
+    filter();
+  }}
 </script>
 </body>
 </html>
 """
 
-ITEM = """<li data-name="{name} {source}">
+ITEM = """<li id="{feed_id}" data-name="{name} {source}">
   <div class="name" dir="auto">{name}{source_label}</div>
   <div class="meta">{meta}</div>
   <div class="links">
     <a href="{app_url}">{open}</a>
     <button type="button" data-url="{url}">{copy}</button>
+    <button type="button" data-share="{feed_id}" data-title="{name}">{share}</button>
   </div>
 </li>"""
 
@@ -105,14 +141,16 @@ def write_index(podcasts, path, title, lang='en'):
                                       latest=texts['latest_date'](latest) if latest else '-'),
             url=escape(podcast.feed_url),
             app_url=escape(podcast_app_url(podcast.feed_url)),
+            feed_id=escape(podcast.feed_url.rsplit('/', 1)[-1].removesuffix('.rss')),
             open=texts['open'],
             copy=texts['copy'],
+            share=texts['share'],
         ))
     updated = texts['updated_date'](datetime.now(timezone.utc))
     path.write_text(PAGE.format(title=escape(title), lang=escape(lang), dir=texts['dir'],
                                 summary=texts['summary'].format(count=len(items), updated=updated),
                                 filter=texts['filter'], filter_label=texts['filter_label'],
-                                copy=texts['copy'], copied=texts['copied'],
+                                copied=texts['copied'], link_copied=texts['link_copied'],
                                 items='\n'.join(items)),
                     encoding='utf8')
 
