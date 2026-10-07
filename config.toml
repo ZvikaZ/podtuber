@@ -52,6 +52,23 @@ category = 'Religion & Spirituality'
 subcategory = 'Judaism'
 image = 'https://static.wixstatic.com/media/413a82_75d0cb10c9e64693a764d1b6a372e49a~mv2.png'
 
+# meirtv.com: a rabbi's page is a podcast per series of his (and one of his lessons in no series);
+# a series' page (https://meirtv.com/shiurim-series/...) is that series alone
+[[podcasts]]
+url = 'https://meirtv.com/rabbis/3788/'
+language = 'he-IL'
+category = 'Religion & Spirituality'
+subcategory = 'Judaism'
+image = 'https://static.wixstatic.com/media/413a82_75d0cb10c9e64693a764d1b6a372e49a~mv2.png'
+
+# hakotel.org.il: a rabbi's category page is a podcast per series of his; a series' category page is that series
+[[podcasts]]
+url = 'https://www.hakotel.org.il/category/מאגר-שיעורים-תורני/רבנים/הרב-קלנר-יוסף/'
+language = 'he-IL'
+category = 'Religion & Spirituality'
+subcategory = 'Judaism'
+image = 'https://static.wixstatic.com/media/413a82_75d0cb10c9e64693a764d1b6a372e49a~mv2.png'
+
 # haravyosefkalner.com: without ?sidra=..., a podcast for every series on the site
 [[podcasts]]
 url = 'https://www.haravyosefkalner.com/shiurim'

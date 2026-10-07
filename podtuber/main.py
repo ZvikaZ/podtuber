@@ -16,7 +16,7 @@ from podgen import Podcast, Person, Category, htmlencode
 from pathvalidate import sanitize_filename
 
 from podtuber.youtube_parser import YoutubePlaylistParser, YoutubeSingleParser
-from podtuber import kalner_parser, bneidavid_parser
+from podtuber import kalner_parser, bneidavid_parser, meirtv_parser, hakotel_parser
 from podtuber.cache import cache
 from podtuber.dedup import deduplicate
 from podtuber.index_page import write_index
@@ -38,10 +38,14 @@ def get_parsers(url):
         return kalner_parser.get_series_parsers(url)
     elif netloc in ('www.bneidavid.org', 'bneidavid.org'):
         return bneidavid_parser.get_series_parsers(url)
+    elif netloc in ('www.meirtv.com', 'meirtv.com'):
+        return meirtv_parser.get_series_parsers(url)
+    elif netloc in ('www.hakotel.org.il', 'hakotel.org.il'):
+        return hakotel_parser.get_series_parsers(url)
     else:
         logger.error(f'Unsupported playlist: {url}\n'
-                     'Currently only YouTube, haravyosefkalner.com and bneidavid.org are supported. You can open '
-                     'an issue, maybe your parser will be added.')
+                     'Currently only YouTube, haravyosefkalner.com, bneidavid.org, meirtv.com and hakotel.org.il are '
+                     'supported. You can open an issue, maybe your parser will be added.')
         sys.exit()
 
 
