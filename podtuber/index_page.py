@@ -130,14 +130,27 @@ for (const button of document.querySelectorAll('button[data-share]'))
       navigator.clipboard.writeText(url.href).then(() => flash(button, TEXTS.link_copied));
   };
 
-// Hebrew-aware matching: every word searched for must start a word in the text, perhaps after prefixes
-// (ו, ה, ב, ל, מ, ש, כ), so 'כוזרי' finds 'הכוזרי' but 'פורים' doesn't find 'הכיפורים'; and gershayim, quotes
-// and niqqud don't count, so 'עין איה' finds 'עין אי"ה'
-const normalize = text => text.replace(/[֑-ׇ]/g, '').replace(/["'`״׳’‘”“]/g, '').toLowerCase();
+// every word searched for must appear in the text, even within a word ('פור' finds 'פורים', and so does
+// 'הכיפורים'); gershayim, quotes and niqqud don't count, so 'עין איה' finds 'עין אי"ה'
+const normalize = text => text.replace(/[\u0591-\u05C7]/g, '').replace(/["'`״׳’‘”“]/g, '').toLowerCase();
+const queryWords = query => normalize(query).split(/\s+/).filter(Boolean);
 function matcher(query) {
-  const patterns = normalize(query).split(/\s+/).filter(Boolean).map(word =>
-    new RegExp('(^|[^א-תa-z0-9])[ובהלמשכ]{0,3}' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  return text => { const normalized = normalize(text); return patterns.every(p => p.test(normalized)); };
+  const words = queryWords(query);
+  return text => { const normalized = normalize(text); return words.every(word => normalized.includes(word)); };
+}
+
+// where the description, rather than the title, has what was searched for: the words around it
+function excerpt(text, query) {
+  const normalized = normalize(text);
+  const word = queryWords(query).find(word => normalized.includes(word));
+  if (!word) return '';
+  // find the word in the text as written (with its gershayim and the like), by skipping what normalize removes
+  const ignored = /[\u0591-\u05C7"'`״׳’‘”“]/;
+  let at = 0;
+  for (let found = normalized.indexOf(word), seen = 0; at < text.length && seen < found; at++)
+    if (!ignored.test(text[at])) seen++;
+  const start = Math.max(0, at - 60), end = Math.min(text.length, at + word.length + 60);
+  return (start ? '…' : '') + text.slice(start, end).trim() + (end < text.length ? '…' : '');
 }
 
 const input = document.querySelector('input[type=search]');
@@ -164,11 +177,17 @@ function element(tag, text, className) {
   return node;
 }
 
-function showLesson([series, title, , date, minutes]) {
+function showLesson([series, title, description, date, minutes], query) {
   const [feedId, seriesName, source] = lessons.series[series];
   const li = element('li');
   const name = element('div', title, 'name');
   name.dir = 'auto';
+  li.append(name);
+  if (!matcher(query)(title)) {  // found by its description, which the result then shows a part of
+    const why = element('div', excerpt(description, query), 'meta');
+    why.dir = 'auto';
+    li.append(why);
+  }
   const meta = [seriesName + (source ? ` [${source}]` : ''), date];
   if (minutes) meta.push(TEXTS.minutes.replace('{count}', minutes));
   const link = element('a', TEXTS.to_series);
@@ -176,7 +195,7 @@ function showLesson([series, title, , date, minutes]) {
   link.onclick = () => { input.value = ''; search(); };  // show the whole list, scrolled to the series
   const links = element('div', null, 'links');
   links.append(link);
-  li.append(name, element('div', meta.join(' · '), 'meta'), links);
+  li.append(element('div', meta.join(' · '), 'meta'), links);
   return li;
 }
 
@@ -202,7 +221,7 @@ async function search() {
   lessonsSection.hidden = false;
   lessonsSection.querySelector('h2').textContent = found.length || seriesFound
     ? TEXTS.lessons.replace('{count}', found.length) : TEXTS.nothing;
-  lessonsSection.querySelector('ul').replaceChildren(...found.slice(0, LIMIT).map(showLesson));
+  lessonsSection.querySelector('ul').replaceChildren(...found.slice(0, LIMIT).map(lesson => showLesson(lesson, query)));
   lessonsSection.querySelector('.note').textContent =
     found.length > LIMIT ? TEXTS.more.replace('{count}', found.length - LIMIT) : '';
 }

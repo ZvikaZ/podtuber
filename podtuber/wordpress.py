@@ -12,16 +12,18 @@ from podtuber.cache import cache
 
 logger = logging.getLogger(__name__)
 
-SNAPSHOTTED_SITES = []
+SITES = []
+ANSWERS = 'answers'  # the cache's section of each site's last answers
 
 
 class WordPressSite:
     """
     A WordPress site's public api (/wp-json/wp/v2/), as the sites of several yeshivot are.
 
-    A site that refuses some servers (GitHub's, say) can be given a snapshot file: a run that can read the site,
-    with --snapshot, saves what it returned there (and what was found about its audio), and a run that can't read
-    the site uses the snapshot instead.
+    A run that can't read the site (say, it's down, or refuses this server) uses the site's last answers instead:
+    those of the last run that could read it, kept in the cache, or those in the site's snapshot file, if it has one,
+    whichever are newer. A site that always refuses some servers (GitHub's, say) needs that file: a run elsewhere
+    with --snapshot saves what the site answered there (and what was found about its audio).
     """
 
     def __init__(self, url, snapshot=None, media_host=None):
@@ -31,8 +33,8 @@ class WordPressSite:
         self.snapshot = Path(snapshot) if snapshot else None
         self.media_host = media_host  # where the site's audio is, whose durations go into the snapshot
         self.recorded, self.replayed, self.cache_sections = {}, None, set()
-        if self.snapshot:
-            SNAPSHOTTED_SITES.append(self)
+        self.replayed_from = None  # when this run uses the site's last answers: where they're from, and their date
+        SITES.append(self)
 
     def api(self, path, params):
         key = f'{path}?{urlencode(sorted(params.items()))}'
@@ -43,18 +45,27 @@ class WordPressSite:
                 self.recorded[key] = response.json(), int(response.headers.get('X-WP-TotalPages', 1))
                 return self.recorded[key]
             except Exception as err:
-                if not (self.snapshot and self.snapshot.exists()):
-                    raise
-                self.use_snapshot(err)
+                self.use_last_answers(err)
         if key not in self.replayed:
-            raise KeyError(f'{key} is not in {self.snapshot}')
+            raise KeyError(f"{key} isn't among {self.url}'s last answers")
         return self.replayed[key]
 
-    def use_snapshot(self, err):
-        snapshot = json.loads(self.snapshot.read_text(encoding='utf8'))
-        logger.warning(f"Couldn't read {self.url} ({err}); using {self.snapshot}, saved {snapshot['saved']}")
-        self.replayed = {key: tuple(value) for key, value in snapshot['api'].items()}
-        cache.merge(snapshot['cache'])
+    def use_last_answers(self, err):
+        candidates = [(answers, 'the cache') for answers in [cache.section(ANSWERS).get(self.url)] if answers]
+        if self.snapshot and self.snapshot.exists():
+            candidates.append((json.loads(self.snapshot.read_text(encoding='utf8')), str(self.snapshot)))
+        if not candidates:
+            raise err
+        answers, where = max(candidates, key=lambda candidate: candidate[0]['saved'])
+        logger.warning(f"Couldn't read {self.url} ({err}); using its answers from {where}, of {answers['saved']}")
+        self.replayed_from = f"{type(err).__name__}: {err}; using its answers from {where}, of {answers['saved']}"
+        self.replayed = {key: tuple(value) for key, value in answers['api'].items()}
+        cache.merge(answers.get('cache', {}))
+
+    def remember_answers(self):
+        """keep this run's answers in the cache, for runs that can't read the site"""
+        if self.replayed is None and self.recorded:
+            cache.section(ANSWERS)[self.url] = {'saved': now(), 'api': self.recorded}
 
     def save_snapshot(self):
         if self.replayed is not None or not self.recorded:
@@ -65,7 +76,7 @@ class WordPressSite:
                           if self.media_host and self.media_host in url and 'error' not in info}
         self.snapshot.parent.mkdir(parents=True, exist_ok=True)
         self.snapshot.write_text(json.dumps({
-            'saved': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+            'saved': now(),
             'api': self.recorded,
             'cache': saved,
         }, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
@@ -115,6 +126,21 @@ class WordPressSite:
             time.sleep(1)  # be gentle
 
 
+def now():
+    return datetime.now(timezone.utc).isoformat(timespec='seconds')
+
+
+def stale_sites():
+    """the sites this run couldn't read, and used their last answers for instead"""
+    return {site.url: site.replayed_from for site in SITES if site.replayed_from}
+
+
+def remember_answers():
+    for site in SITES:
+        site.remember_answers()
+
+
 def save_snapshots():
-    for site in SNAPSHOTTED_SITES:
-        site.save_snapshot()
+    for site in SITES:
+        if site.snapshot:
+            site.save_snapshot()

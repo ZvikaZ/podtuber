@@ -24,7 +24,7 @@ from podtuber import kalner_parser, bneidavid_parser, meirtv_parser, hakotel_par
 from podtuber.cache import cache
 from podtuber.dedup import deduplicate
 from podtuber.index_page import write_index
-from podtuber.wordpress import save_snapshots
+from podtuber.wordpress import remember_answers, save_snapshots, stale_sites
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('podtuber')
@@ -161,6 +161,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     cache.load(output_dir, config['general']['base_url'])
     parsers, failures = read_sources(config, output_dir)
+    remember_answers()
     cache.save()
     if snapshot:
         save_snapshots()
@@ -179,6 +180,7 @@ def main():
     (output_dir / 'status.json').write_text(json.dumps({
         'updated': datetime.now(timezone.utc).isoformat(timespec='seconds'),
         'failures': failures,
+        'stale': stale_sites(),  # sites read from their last answers, so without their newest lessons
     }, ensure_ascii=False, indent=1), encoding='utf8')
 
 
