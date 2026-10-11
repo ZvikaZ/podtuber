@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 from pyluach.dates import HebrewDate
 
 LESSONS_FILENAME = 'lessons.json'
+EPISODES_DIR = 'lessons'  # a file per podcast, of its episodes, for listing them on the page
+PLAY_STORE = 'https://play.google.com/store/apps/details?id='
 
 # the page's texts, by the index page's language (config.toml's [general] language); English for any other
 TEXTS = {
@@ -26,7 +28,13 @@ TEXTS = {
         'share': 'Share',
         'link_copied': 'Link copied',
         'all': 'All',
+        'episodes': 'Episodes ({count})',
+        'no_app': 'No podcast app? Install one, such as <a href="{pocketcasts}">Pocket Casts</a> or '
+                  '<a href="{antennapod}">AntennaPod</a>; or open a podcast&rsquo;s episodes here, to listen '
+                  'to them one by one.',
         'script': {
+            'hide': 'Hide',
+            'download': 'Download',
             'lessons': 'Episodes ({count})',
             'to_series': 'To the podcast',
             'minutes': '{count} min',
@@ -48,7 +56,12 @@ TEXTS = {
         'share': 'שיתוף',
         'link_copied': 'הקישור הועתק',
         'all': 'הכל',
+        'episodes': 'שיעורים ({count})',
+        'no_app': 'אין לכם אפליקציית פודקאסטים? אפשר להתקין אחת, למשל <a href="{pocketcasts}">Pocket Casts</a> '
+                  'או <a href="{antennapod}">AntennaPod</a>; או לפתוח כאן את השיעורים של סדרה ולהאזין להם אחד אחד.',
         'script': {
+            'hide': 'הסתרה',
+            'download': 'הורדה',
             'lessons': 'שיעורים ({count})',
             'to_series': 'לסדרה',
             'minutes': "{count} דק'",
@@ -80,7 +93,8 @@ PAGE = """<!DOCTYPE html>
   ul {{ list-style: none; margin: 0; padding: 0; }}
   li {{ padding: .9rem 0; border-top: 1px solid var(--line); scroll-margin-top: 1rem; }}
   li:target, li.chosen {{ background: color-mix(in srgb, var(--accent) 12%, transparent); }}
-  #lessons li {{ padding: .6rem 0; }}
+  #lessons li, .episodes li {{ padding: .6rem 0; }}
+  .episodes {{ margin-top: .5rem; padding-inline-start: 1rem; border-inline-start: 2px solid var(--line); }}
   #ravs {{ display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }}
   #ravs button {{ text-decoration: none; padding: .3rem .8rem; border: 1px solid var(--line); border-radius: 1rem; }}
   #ravs button[aria-pressed=true] {{ background: var(--accent); border-color: var(--accent); color: var(--bg); }}
@@ -97,6 +111,7 @@ PAGE = """<!DOCTYPE html>
 <main>
 <h1>{title}</h1>
 <p class="note">{summary}</p>
+<p class="note">{no_app}</p>
 {ravs}<input type="search" placeholder="{filter}" aria-label="{filter_label}">
 <ul id="series">
 {items}
@@ -218,6 +233,36 @@ function showRav() {
 for (const button of ravButtons)
   button.onclick = () => { rav = button.dataset.rav; showRav(); typed(); };
 
+// a podcast's episodes, from its own file (lessons/<feed id>.json), loaded when first opened
+async function toggleEpisodes(li, open) {
+  const button = li.querySelector('button[data-episodes]');
+  const list = li.querySelector('.episodes');
+  button.dataset.label = button.dataset.label || button.textContent;
+  open = open ?? list.hidden;
+  if (open && !list.children.length) {
+    const episodes = await (await fetch(`lessons/${encodeURIComponent(li.id)}.json`)).json();
+    list.append(...episodes.map(([title, date, minutes, url]) => {
+      const item = element('li');
+      const name = element('div', title, 'name');
+      name.dir = 'auto';
+      const meta = [date];
+      if (minutes) meta.push(TEXTS.minutes.replace('{count}', minutes));
+      const download = element('a', TEXTS.download);
+      download.href = url;
+      download.target = '_blank';
+      download.rel = 'noopener';
+      const links = element('div', null, 'links');
+      links.append(download);
+      item.append(name, element('div', meta.join(' · '), 'meta'), links);
+      return item;
+    }));
+  }
+  list.hidden = !open;
+  button.textContent = open ? TEXTS.hide : button.dataset.label;
+}
+for (const button of document.querySelectorAll('button[data-episodes]'))
+  button.onclick = () => toggleEpisodes(button.closest('li'));
+
 // typing (or choosing a rav) changes the address in place (?q=...&rav=...), so a search can be shared, and is
 // there when going back to it
 function typed() {
@@ -239,8 +284,9 @@ function showAddress() {
   search();
   for (const li of seriesItems) li.classList.remove('chosen');
   const chosen = url.hash && document.getElementById(decodeURIComponent(url.hash.slice(1)));
-  if (chosen) {
+  if (chosen) {  // a podcast reached from a search, or by its shared link: with its episodes open
     chosen.classList.add('chosen');
+    toggleEpisodes(chosen, true);
     chosen.scrollIntoView();
   }
 }
@@ -282,7 +328,9 @@ ITEM = """<li id="{feed_id}" data-name="{name} {source}" data-rav="{rav}">
     <a href="{app_url}">{open}</a>
     <button type="button" data-url="{url}">{copy}</button>
     <button type="button" data-share="{feed_id}" data-title="{name}">{share}</button>
+    <button type="button" data-episodes="{feed_id}">{episodes}</button>
   </div>
+  <ul class="episodes" hidden></ul>
 </li>"""
 
 
@@ -306,12 +354,14 @@ def write_index(podcasts, path, title, lang='en'):
             app_url=escape(podcast_app_url(podcast.feed_url)),
             feed_id=escape(feed_id),
             rav=escape(rav),
+            episodes=texts['episodes'].format(count=len(podcast.episodes)),
             open=texts['open'],
             copy=texts['copy'],
             share=texts['share'],
         ))
         series.append([feed_id, name, source, rav])
         lessons += [search_entry(len(series) - 1, episode, texts) for episode in podcast.episodes]
+        write_episodes(path.parent / EPISODES_DIR / f'{feed_id}.json', podcast, texts)
 
     (path.parent / LESSONS_FILENAME).write_text(
         json.dumps({'series': series, 'lessons': lessons}, ensure_ascii=False, separators=(',', ':')),
@@ -321,10 +371,27 @@ def write_index(podcasts, path, title, lang='en'):
     path.write_text(PAGE.format(title=escape(title), lang=escape(lang), dir=texts['dir'],
                                 summary=texts['summary'].format(count=len(items), updated=updated),
                                 ravs=rav_buttons(podcasts, texts),
+                                no_app=texts['no_app'].format(pocketcasts=PLAY_STORE + 'au.com.shiftyjelly.pocketcasts',
+                                                              antennapod=PLAY_STORE + 'de.danoeh.antennapod'),
                                 filter=texts['filter'], filter_label=texts['filter_label'],
                                 items='\n'.join(items),
                                 texts=json.dumps(script_texts, ensure_ascii=False), script=SCRIPT),
                     encoding='utf8')
+
+
+def write_episodes(path, podcast, texts):
+    """the podcast's episodes, oldest first: [title, date, minutes, audio url] each"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    episodes = sorted(podcast.episodes, key=lambda episode: episode.publication_date)
+    path.write_text(json.dumps([[episode.title or '', texts['latest_date'](episode.publication_date),
+                                 minutes(episode), episode.media.url if episode.media else '']
+                                for episode in episodes], ensure_ascii=False, separators=(',', ':')),
+                    encoding='utf8')
+
+
+def minutes(episode):
+    duration = episode.media.duration if episode.media else None
+    return round(duration.total_seconds() / 60) if duration else None
 
 
 def rav_buttons(podcasts, texts):
@@ -343,8 +410,7 @@ def search_entry(series, episode, texts):
     description = ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', html.unescape(episode.summary or ''))).split())
     if description == date:  # many episodes' description is only their date
         description = ''
-    duration = episode.media.duration if episode.media else None
-    return [series, episode.title or '', description, date, round(duration.total_seconds() / 60) if duration else None]
+    return [series, episode.title or '', description, date, minutes(episode)]
 
 
 def podcast_app_url(feed_url):
