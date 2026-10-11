@@ -4,13 +4,15 @@ import json
 import re
 from datetime import datetime, timezone
 from html import escape
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 
 from pyluach.dates import HebrewDate
 
 LESSONS_FILENAME = 'lessons.json'
 EPISODES_DIR = 'lessons'  # a file per podcast, of its episodes, for listing them on the page
 PLAY_STORE = 'https://play.google.com/store/apps/details?id='
+# an open book, with sound waves over it, in the page's colors
+FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2f5d8a"/><path d="M10 27c8-4 16-3 22 2 6-5 14-6 22-2v25c-8-4-16-3-22 2-6-5-14-6-22-2z" fill="#fbfaf7"/><path d="M32 29v25" stroke="#2f5d8a" stroke-width="2.5"/><path d="M23 17q9-8 18 0M18 12q14-12 28 0" fill="none" stroke="#fbfaf7" stroke-width="3.5" stroke-linecap="round"/></svg>'
 
 # the page's texts, by the index page's language (config.toml's [general] language); English for any other
 TEXTS = {
@@ -77,6 +79,7 @@ PAGE = """<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,{favicon}">
 <style>
   :root {{ --bg: #fbfaf7; --fg: #1d1c1a; --muted: #6b6860; --line: #e4e1da; --accent: #2f5d8a; }}
   @media (prefers-color-scheme: dark) {{
@@ -371,6 +374,7 @@ def write_index(podcasts, path, title, lang='en'):
     path.write_text(PAGE.format(title=escape(title), lang=escape(lang), dir=texts['dir'],
                                 summary=texts['summary'].format(count=len(items), updated=updated),
                                 ravs=rav_buttons(podcasts, texts),
+                                favicon=quote(FAVICON),
                                 no_app=texts['no_app'].format(pocketcasts=PLAY_STORE + 'au.com.shiftyjelly.pocketcasts',
                                                               antennapod=PLAY_STORE + 'de.danoeh.antennapod'),
                                 filter=texts['filter'], filter_label=texts['filter_label'],
