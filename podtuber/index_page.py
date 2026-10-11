@@ -97,6 +97,9 @@ PAGE = """<!DOCTYPE html>
   li:target, li.chosen {{ background: color-mix(in srgb, var(--accent) 12%, transparent); }}
   #lessons li, .episodes li {{ padding: .6rem 0; }}
   .episodes {{ margin-top: .5rem; padding-inline-start: 1rem; border-inline-start: 2px solid var(--line); }}
+  .description {{ color: var(--muted); font-size: .9rem; display: -webkit-box; -webkit-box-orient: vertical;
+                 -webkit-line-clamp: 3; overflow: hidden; cursor: pointer; }}
+  .description.open {{ -webkit-line-clamp: unset; }}
   #ravs {{ display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }}
   #ravs button {{ text-decoration: none; padding: .3rem .8rem; border: 1px solid var(--line); border-radius: 1rem; }}
   #ravs button[aria-pressed=true] {{ background: var(--accent); border-color: var(--accent); color: var(--bg); }}
@@ -155,6 +158,21 @@ function shareLink(button, hash, title) {
 for (const button of document.querySelectorAll('button[data-share]'))
   button.onclick = () => shareLink(button, button.dataset.share, button.dataset.title);
 
+function audioLink(url) {
+  const link = element('a', TEXTS.download);
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener';
+  return link;
+}
+
+function descriptionElement(text) {  // three lines of it, all of it when tapped
+  const description = element('div', text, 'description');
+  description.dir = 'auto';
+  description.onclick = () => description.classList.toggle('open');
+  return description;
+}
+
 function shareButton(hash, title) {
   const button = element('button', TEXTS.share);
   button.type = 'button';
@@ -209,7 +227,7 @@ function element(tag, text, className) {
   return node;
 }
 
-function showLesson([series, title, description, date, minutes, position], query) {
+function showLesson([series, title, description, date, minutes, position, url], query) {
   const [feedId, seriesName, source] = lessons.series[series];
   const li = element('li');
   const name = element('div', title, 'name');
@@ -230,7 +248,7 @@ function showLesson([series, title, description, date, minutes, position], query
     showAddress();
   };
   const links = element('div', null, 'links');
-  links.append(link, shareButton(`${feedId}/${position}`, title));
+  links.append(audioLink(url), link, shareButton(`${feedId}/${position}`, title));
   li.append(element('div', meta.join(' · '), 'meta'), links);
   return li;
 }
@@ -252,19 +270,17 @@ async function toggleEpisodes(li, open) {
   open = open ?? list.hidden;
   if (open && !list.children.length) {
     const episodes = await (await fetch(`lessons/${encodeURIComponent(li.id)}.json`)).json();
-    list.append(...episodes.map(([title, date, minutes, url], index) => {
+    list.append(...episodes.map(([title, date, minutes, url, text], index) => {
       const item = element('li');
       const name = element('div', title, 'name');
       name.dir = 'auto';
+      item.append(name);
+      if (text) item.append(descriptionElement(text));
       const meta = [date];
       if (minutes) meta.push(TEXTS.minutes.replace('{count}', minutes));
-      const download = element('a', TEXTS.download);
-      download.href = url;
-      download.target = '_blank';
-      download.rel = 'noopener';
       const links = element('div', null, 'links');
-      links.append(download, shareButton(`${li.id}/${index + 1}`, title));
-      item.append(name, element('div', meta.join(' · '), 'meta'), links);
+      links.append(audioLink(url), shareButton(`${li.id}/${index + 1}`, title));
+      item.append(element('div', meta.join(' · '), 'meta'), links);
       return item;
     }));
   }
@@ -397,12 +413,22 @@ def write_index(podcasts, path, title, lang='en'):
 
 
 def write_episodes(path, episodes, texts):
-    """a podcast's episodes: [title, date, minutes, audio url] each"""
+    """a podcast's episodes: [title, date, minutes, audio url, description] each"""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps([[episode.title or '', texts['latest_date'](episode.publication_date),
-                                 minutes(episode), episode.media.url if episode.media else '']
+                                 minutes(episode), audio_url(episode), description(episode, texts)]
                                 for episode in episodes], ensure_ascii=False, separators=(',', ':')),
                     encoding='utf8')
+
+
+def audio_url(episode):
+    return episode.media.url if episode.media else ''
+
+
+def description(episode, texts):
+    """the episode's description as plain text, unless it's only its date, as many are"""
+    text = ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', html.unescape(episode.summary or ''))).split())
+    return '' if text == texts['latest_date'](episode.publication_date) else text
 
 
 def minutes(episode):
@@ -421,12 +447,9 @@ def rav_buttons(podcasts, texts):
 
 
 def search_entry(series, episode, position, texts):
-    """[series index, title, text to search besides the title, date, minutes, position in its series]"""
-    date = texts['latest_date'](episode.publication_date)
-    description = ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', html.unescape(episode.summary or ''))).split())
-    if description == date:  # many episodes' description is only their date
-        description = ''
-    return [series, episode.title or '', description, date, minutes(episode), position]
+    """[series index, title, description (searched too), date, minutes, position in its series, audio url]"""
+    return [series, episode.title or '', description(episode, texts), texts['latest_date'](episode.publication_date),
+            minutes(episode), position, audio_url(episode)]
 
 
 def podcast_app_url(feed_url):

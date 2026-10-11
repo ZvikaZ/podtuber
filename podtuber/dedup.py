@@ -27,7 +27,8 @@ def deduplicate(parsers):
     dropped, overlapping = set(), []
     for i, first in enumerate(candidates):
         for second in candidates[i + 1:]:
-            if first in dropped or second in dropped or first.get_source_name() == second.get_source_name():
+            if (first in dropped or second in dropped or first.get_source_name() == second.get_source_name()
+                    or first.get_owner_name() != second.get_owner_name()):  # two ravs never share a recording
                 continue
             first_in_second = count_shared(recordings[first], recordings[second])
             second_in_first = count_shared(recordings[second], recordings[first])
