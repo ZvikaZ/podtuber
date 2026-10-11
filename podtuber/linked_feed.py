@@ -86,7 +86,9 @@ class LinkedPodcastParser:
         return self.url
 
     def get_name(self):
-        return (self.channel.findtext('title') or self.url).strip()
+        # named like the other podcasts, after their rav, unless their own title names him already
+        title = (self.channel.findtext('title') or self.url).strip()
+        return title if self.rav_name.split()[-1] in title else f'{title} - {self.rav_name}'
 
     def get_feed_id(self):
         return 'linked-' + hashlib.sha1(self.url.encode()).hexdigest()[:8]

@@ -113,6 +113,28 @@ category = 'Religion & Spirituality'
 subcategory = 'Judaism'
 image = 'https://zvikaz.github.io/podtuber/sherki.jpg'
 
+[[podcasts]]
+url = 'https://meirtv.com/rabbis/3824/'
+rav = 'הרב יהושע צוקרמן'
+language = 'he-IL'
+category = 'Religion & Spirituality'
+subcategory = 'Judaism'
+
+[[podcasts]]
+rav = 'הרב אריאל אדרי'
+source = 'פודקאסט'
+feeds = [
+    'http://www.harchoma.org.il/RavEdery/Berachot/Berachot_feed.rss',  # הלכות ברכות
+    'http://www.harchoma.org.il/RavEdery/Tefila/Tefila_feed.rss',  # הלכות תפילה
+    'http://www.harchoma.org.il/RavEdery/Techouva/Techouva_feed.rss',  # הלכות תשובה מפי הרמב"ם
+    'http://www.harchoma.org.il/RavEdery/Pessach/Pessach_feed.rss',  # הלכות פסח
+    'http://www.harchoma.org.il/RavEdery/Chanukah/Feed.rss',  # הלכות חנוכה
+    'http://www.harchoma.org.il/RavEdery/TlouliotBaAretz/TlouliotBaAretz_feed.rss',  # מצוות תלויות בארץ
+    'http://www.harchoma.org.il/RavEdery/Emouna/Emouna_feed.rss',  # אמונה
+    'http://www.harchoma.org.il/Chagim/Chagim_feed.rss',  # לימוד תורה בחול המועד
+    # (הלכות נדה isn't listed: its feed's audio addresses are relative, which podcast apps can't play)
+]
+
 # haravyosefkalner.com: without ?sidra=..., a podcast for every series on the site
 [[podcasts]]
 url = 'https://www.haravyosefkalner.com/shiurim'
