@@ -1,3 +1,4 @@
+import gzip
 import html
 import json
 import logging
@@ -13,6 +14,13 @@ from podtuber.cache import cache
 logger = logging.getLogger(__name__)
 
 SITES = []
+SNAPSHOTS_DIR = Path('snapshots')  # where --snapshot saves them (refresh-snapshots.sh pushes them to their own branch)
+snapshots_url = None  # where runs that have no snapshots of their own download them from
+
+
+def set_snapshots_url(url):
+    global snapshots_url
+    snapshots_url = url and url.rstrip('/') + '/'
 ANSWERS = 'answers'  # the cache's section of each site's last answers
 
 
@@ -30,7 +38,7 @@ class WordPressSite:
         self.url = url.rstrip('/')
         # some sites' firewalls (Cloudflare, say) turn away what doesn't look like a browser
         self.session = requests.Session(impersonate='chrome')
-        self.snapshot = Path(snapshot) if snapshot else None
+        self.snapshot = snapshot  # the snapshot's file name
         self.media_host = media_host  # where the site's audio is, whose durations go into the snapshot
         self.recorded, self.replayed, self.cache_sections = {}, None, set()
         self.replayed_from = None  # when this run uses the site's last answers: where they're from, and their date
@@ -52,8 +60,8 @@ class WordPressSite:
 
     def use_last_answers(self, err):
         candidates = [(answers, 'the cache') for answers in [cache.section(ANSWERS).get(self.url)] if answers]
-        if self.snapshot and self.snapshot.exists():
-            candidates.append((json.loads(self.snapshot.read_text(encoding='utf8')), str(self.snapshot)))
+        if snapshot := self.read_snapshot():
+            candidates.append(snapshot)
         if not candidates:
             raise err
         answers, where = max(candidates, key=lambda candidate: candidate[0]['saved'])
@@ -61,6 +69,25 @@ class WordPressSite:
         self.replayed_from = f"{type(err).__name__}: {err}; using its answers from {where}, of {answers['saved']}"
         self.replayed = {key: tuple(value) for key, value in answers['api'].items()}
         cache.merge(answers.get('cache', {}))
+
+    def read_snapshot(self):
+        """(the snapshot, where it's from): the one saved here, or else the uploaded one"""
+        if not self.snapshot:
+            return None
+        if (SNAPSHOTS_DIR / self.snapshot).exists():
+            data, where = (SNAPSHOTS_DIR / self.snapshot).read_bytes(), str(SNAPSHOTS_DIR / self.snapshot)
+        elif snapshots_url:
+            try:
+                where = snapshots_url + self.snapshot
+                response = self.session.get(where, timeout=120)
+                response.raise_for_status()
+                data = response.content
+            except Exception as err:
+                logger.warning(f"Couldn't download {self.snapshot}: {err}")
+                return None
+        else:
+            return None
+        return json.loads(gzip.decompress(data).decode('utf8')), where
 
     def remember_answers(self):
         """keep this run's answers in the cache, for runs that can't read the site"""
@@ -74,13 +101,13 @@ class WordPressSite:
         saved = {section: cache.section(section) for section in self.cache_sections}
         saved['audio'] = {url: info for url, info in cache.section('audio').items()
                           if self.media_host and self.media_host in url and 'error' not in info}
-        self.snapshot.parent.mkdir(parents=True, exist_ok=True)
-        self.snapshot.write_text(json.dumps({
+        SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+        (SNAPSHOTS_DIR / self.snapshot).write_bytes(gzip.compress(json.dumps({
             'saved': now(),
             'api': self.recorded,
             'cache': saved,
-        }, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
-        logger.info(f'Saved {self.snapshot}')
+        }, ensure_ascii=False, separators=(',', ':')).encode('utf8')))
+        logger.info(f'Saved {SNAPSHOTS_DIR / self.snapshot}')
 
     def get_all(self, path, params):
         items, page, pages = [], 1, 1

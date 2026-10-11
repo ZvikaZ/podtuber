@@ -9,7 +9,7 @@ from podtuber.lessons import Lesson, SeriesParser, clean_text, strip_rav_name
 from podtuber.wordpress import WordPressSite
 
 # its firewall refuses GitHub's servers, so runs there use what a run elsewhere saved (see refresh-snapshots.sh)
-SITE = WordPressSite('https://meirtv.com', snapshot='snapshots/meirtv.json', media_host='mp3.meirtv.co.il')
+SITE = WordPressSite('https://meirtv.com', snapshot='meirtv.json.gz', media_host='mp3.meirtv.co.il')
 SOURCE_NAME = 'ערוץ מאיר'
 LOGO_URL = f'{SITE.url}/wp-content/uploads/2021/02/cropped-logo2-270x270.png'
 CACHE_SECTION = 'meirtv:audio'
@@ -22,11 +22,11 @@ STUDY_DAY_SERIES = re.compile(r'עיון|כנס')  # 'יום עיון לפורי
 MP3_URL = re.compile(r'https?://mp3\.meirtv\.co\.il/[^"\'<>]+?\.mp3', re.IGNORECASE)
 
 
-def get_series_parsers(url):
+def get_series_parsers(url, rav_name=None):
     """
     https://meirtv.com/rabbis/<rabbi>/ is a podcast per series of that rav, and his talks in study days (series of
     talks by many rabbis) and his other lessons as two more; https://meirtv.com/shiurim-series/<series>/ is that
-    series alone.
+    series alone. rav_name, when given, is how the rav is named, rather than as the site names him.
     """
     kind, slug = unquote(urlparse(url).path).strip('/').split('/')[:2]
     if kind not in ('rabbis', 'shiurim-series'):
@@ -58,6 +58,8 @@ def get_series_parsers(url):
     parsers = []
     for series_id, series_lessons in by_series.items():
         rav = ravs[collections.Counter(r for lesson in series_lessons for r in lesson['rabbis']).most_common(1)[0][0]]
+        if rav_name:
+            rav = {**rav, 'name': rav_name}
         with_audio = [lesson for lesson in series_lessons if lesson_audio_url(lesson)]
         if not with_audio:
             continue

@@ -7,6 +7,13 @@ base_url = 'https://zvikaz.github.io/podtuber/'
 # where the .rss files, and an index.html listing them, are written (defaults to the current directory)
 output_dir = 'public'
 
+# files published along with them, such as pictures for podcasts' image (defaults to 'static')
+static_dir = 'static'
+
+# where runs that can't read a site that refuses them (Meir TV refuses GitHub's) download its snapshot from:
+# the snapshots branch, which refresh-snapshots.sh replaces
+snapshots_url = 'https://raw.githubusercontent.com/ZvikaZ/podtuber/snapshots/'
+
 # the index.html page's title and language
 title = 'שיעורים - פודקאסטים'
 language = 'he'
@@ -54,7 +61,8 @@ image = 'https://static.wixstatic.com/media/413a82_75d0cb10c9e64693a764d1b6a372e
 
 # meirtv.com: a rabbi's page is a podcast per series of his (and one of his lessons in no series);
 # a series' page (https://meirtv.com/shiurim-series/...) is that series alone.
-# its firewall refuses GitHub's servers, so GitHub's runs use snapshots/meirtv.json; refresh-snapshots.sh updates it
+# its firewall refuses GitHub's servers, so GitHub's runs use its snapshot (see snapshots_url above);
+# refresh-snapshots.sh updates it
 [[podcasts]]
 url = 'https://meirtv.com/rabbis/3788/'
 language = 'he-IL'
@@ -94,6 +102,16 @@ feeds = [
     'https://anchor.fm/s/97a77f3c/podcast/rss',  # עשרת הדיברות
     'https://feeds.soundcloud.com/users/soundcloud:users:106769767/sounds.rss',  # כאן ועכשיו - שיחות עם הרב
 ]
+
+# rav: how to name him, rather than as the site does ('הרב אורי עמוס שרקי'); listed after his own podcasts,
+# so that where they're identical, his podcasts are the ones listed
+[[podcasts]]
+url = 'https://meirtv.com/rabbis/3774/'
+rav = 'הרב אורי שרקי'
+language = 'he-IL'
+category = 'Religion & Spirituality'
+subcategory = 'Judaism'
+image = 'https://zvikaz.github.io/podtuber/sherki.jpg'
 
 # haravyosefkalner.com: without ?sidra=..., a podcast for every series on the site
 [[podcasts]]

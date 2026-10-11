@@ -8,6 +8,7 @@
 
 import argparse
 import json
+import shutil
 import logging
 import sys
 import tomli
@@ -24,7 +25,7 @@ from podtuber import kalner_parser, bneidavid_parser, meirtv_parser, hakotel_par
 from podtuber.cache import cache
 from podtuber.dedup import deduplicate
 from podtuber.index_page import write_index
-from podtuber.wordpress import remember_answers, save_snapshots, stale_sites
+from podtuber.wordpress import remember_answers, save_snapshots, set_snapshots_url, stale_sites
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('podtuber')
@@ -32,7 +33,7 @@ logger = logging.getLogger('podtuber')
 example_config_toml_url = 'https://github.com/ZvikaZ/podtuber/blob/master/config.toml'
 
 
-def get_parsers(url):
+def get_parsers(url, podcast_config=None):
     netloc = urlparse(url).netloc
     if netloc == 'www.youtube.com':
         if urlparse(url).path == '/playlist':
@@ -44,7 +45,7 @@ def get_parsers(url):
     elif netloc in ('www.bneidavid.org', 'bneidavid.org'):
         return bneidavid_parser.get_series_parsers(url)
     elif netloc in ('www.meirtv.com', 'meirtv.com'):
-        return meirtv_parser.get_series_parsers(url)
+        return meirtv_parser.get_series_parsers(url, (podcast_config or {}).get('rav'))
     elif netloc in ('www.hakotel.org.il', 'hakotel.org.il'):
         return hakotel_parser.get_series_parsers(url)
     else:
@@ -75,7 +76,7 @@ def read_sources(config, output_dir):
                 if 'feeds' in podcast_config:
                     found = linked_feed.get_parsers(url, podcast_config['rav'], podcast_config.get('source', ''))
                 else:
-                    found = get_parsers(url)
+                    found = get_parsers(url, podcast_config)
             except Exception as err:
                 logger.exception(f"Couldn't read {url}")
                 failures[url] = f'{type(err).__name__}: {err}'
@@ -166,6 +167,9 @@ def main():
         sys.exit()
     output_dir = Path(config['general'].get('output_dir', '.'))
     output_dir.mkdir(parents=True, exist_ok=True)
+    if Path(config['general'].get('static_dir', 'static')).is_dir():
+        shutil.copytree(config['general'].get('static_dir', 'static'), output_dir, dirs_exist_ok=True)
+    set_snapshots_url(config['general'].get('snapshots_url'))
     cache.load(output_dir, config['general']['base_url'])
     parsers, failures = read_sources(config, output_dir)
     remember_answers()

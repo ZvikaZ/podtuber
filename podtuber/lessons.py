@@ -39,7 +39,7 @@ def strip_rav_name(text, rav_name):
     if not rav_name:
         return text
     last_name = rav_name.split()[-1]
-    text = re.sub(rf'\s*[-|–]?\s*הרב\s+(?:\S+\s+)?{re.escape(last_name)}\b(?:\s+(?:שליט"א|זצ"ל))?', '', text)
+    text = re.sub(rf'\s*[-|–]?\s*הרב\s+(?:\S+\s+){{0,2}}{re.escape(last_name)}\b(?:\s+(?:שליט"א|זצ"ל))?', '', text)
     return text.strip(' -|–')
 
 
