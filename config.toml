@@ -70,6 +70,31 @@ category = 'Religion & Spirituality'
 subcategory = 'Judaism'
 image = 'https://static.wixstatic.com/media/413a82_75d0cb10c9e64693a764d1b6a372e49a~mv2.png'
 
+# podcasts that already exist: listed and searched on the index page, but subscribed to at their own feeds
+# (rav names their rav, for the index page's buttons; source is shown next to their name)
+[[podcasts]]
+rav = 'הרב אורי שרקי'
+source = 'פודקאסט'
+feeds = [
+    'https://anchor.fm/s/104ca6318/podcast/rss',  # אורות התשובה
+    'https://anchor.fm/s/1052e6a84/podcast/rss',  # ספר בראשית
+    'https://anchor.fm/s/104ca970c/podcast/rss',  # ספר שמות
+    'https://anchor.fm/s/104caa904/podcast/rss',  # ספר ויקרא
+    'https://anchor.fm/s/104fb183c/podcast/rss',  # ספר במדבר
+    'https://anchor.fm/s/104fb0194/podcast/rss',  # ספר דברים
+    'https://anchor.fm/s/104fb27dc/podcast/rss',  # ספר יהושע
+    'https://anchor.fm/s/100a3b1e0/podcast/rss',  # ספר שופטים
+    'https://anchor.fm/s/104798588/podcast/rss',  # ספר שמואל
+    'https://anchor.fm/s/10d33b25c/podcast/rss',  # ספר מלכים
+    'https://anchor.fm/s/115a2ab3c/podcast/rss',  # ספר ישעיהו
+    'https://anchor.fm/s/107bc12d8/podcast/rss',  # תפילה
+    'https://anchor.fm/s/107bc17ec/podcast/rss',  # מאמרי הראיה
+    'https://anchor.fm/s/100785068/podcast/rss',  # ספר תומר דבורה
+    'https://anchor.fm/s/79879fc8/podcast/rss',  # שיעור יום שישי
+    'https://anchor.fm/s/97a77f3c/podcast/rss',  # עשרת הדיברות
+    'https://feeds.soundcloud.com/users/soundcloud:users:106769767/sounds.rss',  # כאן ועכשיו - שיחות עם הרב
+]
+
 # haravyosefkalner.com: without ?sidra=..., a podcast for every series on the site
 [[podcasts]]
 url = 'https://www.haravyosefkalner.com/shiurim'

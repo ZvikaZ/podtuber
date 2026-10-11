@@ -5,6 +5,9 @@ Simple Python application to create podcast `.rss` files from YouTube playlists,
 and from the recorded lessons on [haravyosefkalner.com](https://www.haravyosefkalner.com/shiurim),
 [bneidavid.org](https://bneidavid.org), [meirtv.com](https://meirtv.com) and [hakotel.org.il](https://www.hakotel.org.il).
 
+Podcasts that already exist can be listed too (`feeds = [...]` in `config.toml`): they're searched and listed
+on the index page, but subscribed to at their own feeds.
+
 A series published on several sites becomes a single podcast when the sites have the same lessons
 (the same dates and durations), or when one has all of the other's lessons and more.
 

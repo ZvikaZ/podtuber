@@ -1,3 +1,4 @@
+import collections
 import html
 import json
 import re
@@ -24,6 +25,7 @@ TEXTS = {
         'copied': 'Copied',
         'share': 'Share',
         'link_copied': 'Link copied',
+        'all': 'All',
         'script': {
             'lessons': 'Episodes ({count})',
             'to_series': 'To the podcast',
@@ -45,6 +47,7 @@ TEXTS = {
         'copied': 'הועתק',
         'share': 'שיתוף',
         'link_copied': 'הקישור הועתק',
+        'all': 'הכל',
         'script': {
             'lessons': 'שיעורים ({count})',
             'to_series': 'לסדרה',
@@ -78,6 +81,9 @@ PAGE = """<!DOCTYPE html>
   li {{ padding: .9rem 0; border-top: 1px solid var(--line); scroll-margin-top: 1rem; }}
   li:target, li.chosen {{ background: color-mix(in srgb, var(--accent) 12%, transparent); }}
   #lessons li {{ padding: .6rem 0; }}
+  #ravs {{ display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }}
+  #ravs button {{ text-decoration: none; padding: .3rem .8rem; border: 1px solid var(--line); border-radius: 1rem; }}
+  #ravs button[aria-pressed=true] {{ background: var(--accent); border-color: var(--accent); color: var(--bg); }}
   .name {{ font-weight: 600; }}
   .source {{ font-weight: normal; color: var(--muted); }}
   .meta {{ color: var(--muted); font-size: .85rem; }}
@@ -91,7 +97,7 @@ PAGE = """<!DOCTYPE html>
 <main>
 <h1>{title}</h1>
 <p class="note">{summary}</p>
-<input type="search" placeholder="{filter}" aria-label="{filter_label}">
+{ravs}<input type="search" placeholder="{filter}" aria-label="{filter_label}">
 <ul id="series">
 {items}
 </ul>
@@ -203,20 +209,33 @@ function showLesson([series, title, description, date, minutes], query) {
   return li;
 }
 
-// typing changes the address in place (?q=...), so a search can be shared, and is there when going back to it
+// the rav whose podcasts are shown ('' for all)
+let rav = '';
+const ravButtons = [...document.querySelectorAll('#ravs button')];
+function showRav() {
+  for (const button of ravButtons) button.setAttribute('aria-pressed', button.dataset.rav === rav);
+}
+for (const button of ravButtons)
+  button.onclick = () => { rav = button.dataset.rav; showRav(); typed(); };
+
+// typing (or choosing a rav) changes the address in place (?q=...&rav=...), so a search can be shared, and is
+// there when going back to it
 function typed() {
   const query = input.value.trim();
   const url = new URL(location.href);
   url.hash = '';
   if (query) url.searchParams.set('q', query); else url.searchParams.delete('q');
+  if (rav) url.searchParams.set('rav', rav); else url.searchParams.delete('rav');
   history.replaceState(null, '', url);
   search();
 }
 
-// what the address says: a search (?q=...), or a podcast to scroll to (#...)
+// what the address says: a search (?q=...) of a rav's podcasts (&rav=...), or a podcast to scroll to (#...)
 function showAddress() {
   const url = new URL(location.href);
   input.value = url.searchParams.get('q') || '';
+  rav = url.searchParams.get('rav') || '';
+  showRav();
   search();
   for (const li of seriesItems) li.classList.remove('chosen');
   const chosen = url.hash && document.getElementById(decodeURIComponent(url.hash.slice(1)));
@@ -231,7 +250,7 @@ async function search() {
   const matches = matcher(query);
   let seriesFound = 0;
   for (const li of seriesItems) {
-    li.hidden = query && !matches(li.dataset.name);
+    li.hidden = (rav && li.dataset.rav !== rav) || (query && !matches(li.dataset.name));
     seriesFound += !li.hidden;
   }
   if (query.length < 2) {
@@ -240,7 +259,8 @@ async function search() {
   }
   const {lessons: all} = await loadLessons();
   if (input.value.trim() !== query) return;  // typed on in the meantime
-  const found = all.filter(([, title, text]) => matches(title + ' ' + text));
+  const found = all.filter(([series, title, text]) =>
+    (!rav || lessons.series[series][3] === rav) && matches(title + ' ' + text));
   lessonsSection.hidden = false;
   lessonsSection.querySelector('h2').textContent = found.length || seriesFound
     ? TEXTS.lessons.replace('{count}', found.length) : TEXTS.nothing;
@@ -251,10 +271,11 @@ async function search() {
 
 input.oninput = typed;
 window.onpopstate = showAddress;  // back and forward
+showRav();
 if (location.search || location.hash) showAddress();
 """
 
-ITEM = """<li id="{feed_id}" data-name="{name} {source}">
+ITEM = """<li id="{feed_id}" data-name="{name} {source}" data-rav="{rav}">
   <div class="name" dir="auto">{name}{source_label}</div>
   <div class="meta">{meta}</div>
   <div class="links">
@@ -267,13 +288,13 @@ ITEM = """<li id="{feed_id}" data-name="{name} {source}">
 
 def write_index(podcasts, path, title, lang='en'):
     """
-    A page listing the podcasts (each a (podgen Podcast, name, source)), for subscribing to them from a phone,
-    and searching them and their episodes.
+    A page listing the podcasts, for subscribing to them from a phone, and searching them and their episodes. Each
+    podcast is a dict of its podgen 'podcast', and its 'name', 'feed_id', 'source' and 'rav'.
     """
     texts = TEXTS.get(lang.split('-')[0], TEXTS['en'])
     items, series, lessons = [], [], []
-    for podcast, name, source in sorted(podcasts, key=lambda entry: (entry[1], entry[2])):
-        feed_id = podcast.feed_url.rsplit('/', 1)[-1].removesuffix('.rss')
+    for entry in sorted(podcasts, key=lambda entry: (entry['name'], entry['source'])):
+        podcast, name, source, feed_id, rav = (entry[key] for key in ('podcast', 'name', 'source', 'feed_id', 'rav'))
         latest = max((episode.publication_date for episode in podcast.episodes), default=None)
         items.append(ITEM.format(
             name=escape(name),
@@ -284,11 +305,12 @@ def write_index(podcasts, path, title, lang='en'):
             url=escape(podcast.feed_url),
             app_url=escape(podcast_app_url(podcast.feed_url)),
             feed_id=escape(feed_id),
+            rav=escape(rav),
             open=texts['open'],
             copy=texts['copy'],
             share=texts['share'],
         ))
-        series.append([feed_id, name, source])
+        series.append([feed_id, name, source, rav])
         lessons += [search_entry(len(series) - 1, episode, texts) for episode in podcast.episodes]
 
     (path.parent / LESSONS_FILENAME).write_text(
@@ -298,16 +320,27 @@ def write_index(podcasts, path, title, lang='en'):
     script_texts = {**texts['script'], 'copied': texts['copied'], 'link_copied': texts['link_copied']}
     path.write_text(PAGE.format(title=escape(title), lang=escape(lang), dir=texts['dir'],
                                 summary=texts['summary'].format(count=len(items), updated=updated),
+                                ravs=rav_buttons(podcasts, texts),
                                 filter=texts['filter'], filter_label=texts['filter_label'],
                                 items='\n'.join(items),
                                 texts=json.dumps(script_texts, ensure_ascii=False), script=SCRIPT),
                     encoding='utf8')
 
 
+def rav_buttons(podcasts, texts):
+    """a button per rav, with his number of podcasts, when there's more than one"""
+    counts = collections.Counter(entry['rav'] for entry in podcasts)
+    if len(counts) < 2:
+        return ''
+    buttons = [('', texts['all'], len(podcasts))] + [(rav, rav, count) for rav, count in counts.most_common()]
+    return '<nav id="ravs">' + ''.join(f'<button type="button" data-rav="{escape(rav)}">{escape(label)} ({count})</button>'
+                                       for rav, label, count in buttons) + '</nav>\n'
+
+
 def search_entry(series, episode, texts):
     """[series index, title, text to search besides the title, date, minutes]"""
     date = texts['latest_date'](episode.publication_date)
-    description = ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', episode.summary or '')).split())
+    description = ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', html.unescape(episode.summary or ''))).split())
     if description == date:  # many episodes' description is only their date
         description = ''
     duration = episode.media.duration if episode.media else None

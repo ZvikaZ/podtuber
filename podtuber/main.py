@@ -20,7 +20,7 @@ from podgen import Podcast, Person, Category, htmlencode
 from pathvalidate import sanitize_filename
 
 from podtuber.youtube_parser import YoutubePlaylistParser, YoutubeSingleParser
-from podtuber import kalner_parser, bneidavid_parser, meirtv_parser, hakotel_parser
+from podtuber import kalner_parser, bneidavid_parser, meirtv_parser, hakotel_parser, linked_feed
 from podtuber.cache import cache
 from podtuber.dedup import deduplicate
 from podtuber.index_page import write_index
@@ -69,16 +69,20 @@ def read_sources(config, output_dir):
     published = cache.section('feeds')  # each source's feed ids, as last published
     parsers, failures = [], {}
     for podcast_config in config.get('podcasts'):
-        url = podcast_config['url']
-        try:
-            found = get_parsers(url)
-        except Exception as err:
-            logger.exception(f"Couldn't read {url}")
-            failures[url] = f'{type(err).__name__}: {err}'
-            keep_published_feeds(published.get(url, []), config['general']['base_url'], output_dir)
-            continue
-        published[url] = [feed_id(parser) for parser in found]
-        parsers += [(parser, podcast_config) for parser in found]
+        # an entry is either a url of a source (a playlist, a rav's page...), or podcasts that already exist (feeds)
+        for url in podcast_config.get('feeds') or [podcast_config['url']]:
+            try:
+                if 'feeds' in podcast_config:
+                    found = linked_feed.get_parsers(url, podcast_config['rav'], podcast_config.get('source', ''))
+                else:
+                    found = get_parsers(url)
+            except Exception as err:
+                logger.exception(f"Couldn't read {url}")
+                failures[url] = f'{type(err).__name__}: {err}'
+                keep_published_feeds(published.get(url, []), config['general']['base_url'], output_dir)
+                continue
+            published[url] = [feed_id(parser) for parser in found if not hasattr(parser, 'get_linked_feed_url')]
+            parsers += [(parser, podcast_config) for parser in found]
     return parsers, failures
 
 
@@ -136,6 +140,9 @@ def create_rss(parser, podcast_config, config, output_dir):
             episode.link = parsed_episode.get_link()
             episode.authors = parsed_episode.get_authors()
 
+    if hasattr(parser, 'get_linked_feed_url'):  # a podcast that already exists is subscribed to at its source
+        podcast.feed_url = parser.get_linked_feed_url()
+        return podcast
     podcast.rss_file(str(output_dir / rss_filename))
     logger.info(f"Created '{output_dir / rss_filename}'\n")
     return podcast
@@ -172,8 +179,11 @@ def main():
                 for parser, podcast_config in parsers]
     cache.save()
     # the index names each podcast's source itself, so it uses the names without the told-apart suffix
-    write_index([(podcast, parser.get_name(), getattr(parser, 'get_source_name', lambda: '')())
-                 for parser, podcast in podcasts if parser in listed and podcast.episodes], output_dir / 'index.html',
+    write_index([{'podcast': podcast, 'name': parser.get_name(), 'feed_id': feed_id(parser),
+                  'source': getattr(parser, 'get_source_name', lambda: '')(),
+                  'rav': podcast_config.get('rav') or parser.get_owner_name()}
+                 for (parser, podcast), (_, podcast_config) in zip(podcasts, parsers)
+                 if parser in listed and podcast.episodes], output_dir / 'index.html',
                 title=config['general'].get('title', 'Podcasts'), lang=config['general'].get('language', 'en'))
     logger.info(f"Created '{output_dir / 'index.html'}'")
     # published alongside, so a run's problems can be seen without access to its log
