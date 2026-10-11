@@ -105,9 +105,13 @@ feeds = [
 
 # rav: how to name him, rather than as the site does ('הרב אורי עמוס שרקי'); listed after his own podcasts,
 # so that where they're identical, his podcasts are the ones listed
+# topics: his lessons in no series, whose titles name one of these, are a podcast per topic (the first one named)
 [[podcasts]]
 url = 'https://meirtv.com/rabbis/3774/'
 rav = 'הרב אורי שרקי'
+# (a topic may be spelled several ways: a list of its spellings, the first of which names its podcast)
+topics = ['נתיבות עולם', 'לנבוכי הדור', ["דרך ה'", 'דרך השם'], 'אמונות ודעות', 'מסכת אבות', 'אורות הקודש', 'מורה נבוכים',
+          'אורות ישראל', 'באר הגולה', 'הלכות מלכים', 'רמב"ם']
 language = 'he-IL'
 category = 'Religion & Spirituality'
 subcategory = 'Judaism'

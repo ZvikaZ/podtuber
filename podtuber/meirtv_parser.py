@@ -1,4 +1,5 @@
 import collections
+import hashlib
 import re
 from datetime import datetime, timezone
 from urllib.parse import urlparse, unquote, quote
@@ -17,16 +18,19 @@ LESSON_FIELDS = 'id,date_gmt,link,title,shiurim-series,rabbis'
 OTHER_LESSONS = 'שיעורים נוספים'  # the rav's lessons that aren't in a series of his
 STUDY_DAYS = 'ימי עיון'  # his talks in study days and conventions, each of many rabbis
 STUDY_DAY_SERIES = re.compile(r'עיון|כנס')  # 'יום עיון לפורים - התשעה', 'כנס תשובה מאהבה - התשסט'
+# since 2023, the site's slogan starts every title: 'ערוץ מאיר - מכון מאיר | מיטב התוכן מתעדכן יומי: נתיבות עולם...'
+SLOGAN = re.compile(r'^ערוץ מאיר\s*-\s*מכון מאיר\s*\|\s*מיטב התוכן מתעדכן יומי:\s*')
 
 # the api doesn't give a lesson's audio, only its page does
 MP3_URL = re.compile(r'https?://mp3\.meirtv\.co\.il/[^"\'<>]+?\.mp3', re.IGNORECASE)
 
 
-def get_series_parsers(url, rav_name=None):
+def get_series_parsers(url, rav_name=None, topics=()):
     """
     https://meirtv.com/rabbis/<rabbi>/ is a podcast per series of that rav, and his talks in study days (series of
     talks by many rabbis) and his other lessons as two more; https://meirtv.com/shiurim-series/<series>/ is that
-    series alone. rav_name, when given, is how the rav is named, rather than as the site names him.
+    series alone. rav_name, when given, is how the rav is named, rather than as the site names him; and topics, of
+    his other lessons, are podcasts of their own, of the lessons whose titles name them (the first one named).
     """
     kind, slug = unquote(urlparse(url).path).strip('/').split('/')[:2]
     if kind not in ('rabbis', 'shiurim-series'):
@@ -46,9 +50,14 @@ def get_series_parsers(url, rav_name=None):
             if series_id is not None and len(series_lessons) * 2 <= series[series_id]['count']:
                 del by_series[series_id]
                 name = clean_text(series[series_id]['name']).strip(' -')
+                if SLOGAN.match(name + ':'):  # a 'series' named by the site's slogan, of lessons of all ravs: none
+                    by_series[None] += series_lessons
+                    continue
                 group = STUDY_DAYS if STUDY_DAY_SERIES.search(name) else None
                 by_series[group] += series_lessons
                 title_prefix.update({lesson['id']: name for lesson in series_lessons})
+        for lesson in by_series.pop(None, []):  # his other lessons, by the topic their title names, if any
+            by_series[topic_of(lesson_title(lesson), topics)] += [lesson]
 
     SITE.find_audio(CACHE_SECTION, [lesson for series_lessons in by_series.values() for lesson in series_lessons],
                     audio_in_page)
@@ -65,6 +74,9 @@ def get_series_parsers(url, rav_name=None):
             continue
         if series_id is None:
             name, feed_id, website = OTHER_LESSONS, f'meirtv-rabbi-{term["id"]}-other', term['link']
+        elif isinstance(series_id, Topic):
+            topic_id = hashlib.sha1(series_id.name.encode()).hexdigest()[:8]
+            name, feed_id, website = series_id.name, f'meirtv-rabbi-{term["id"]}-topic-{topic_id}', term['link']
         elif series_id == STUDY_DAYS:
             name, feed_id, website = STUDY_DAYS, f'meirtv-rabbi-{term["id"]}-study-days', term['link']
         else:
@@ -81,14 +93,43 @@ def get_series_parsers(url, rav_name=None):
             lessons=[Lesson(id=f'meirtv-{lesson["id"]}',
                             date=datetime.fromisoformat(lesson['date_gmt']).replace(tzinfo=timezone.utc),
                             # titles end with the rav's name: 'שלושה שאכלו כאחד | עין איה ברכות ג, א | הרב יוסף קלנר'
-                            title=prefixed(title_prefix.get(lesson['id']),
-                                           strip_rav_name(clean_text(lesson['title']['rendered']), rav['name'])),
+                            title=prefixed(title_prefix.get(lesson['id']), strip_rav_name(lesson_title(lesson), rav['name'])),
                             link=lesson['link'],
                             audio_url=lesson_audio_url(lesson),
                             order=lesson['id'])
                      for lesson in with_audio],
         ))
     return parsers
+
+
+class Topic(str):
+    """a topic of a rav's other lessons, keying their podcast among his series' ids"""
+
+    @property
+    def name(self):
+        return str(self)
+
+
+def lesson_title(lesson):
+    return SLOGAN.sub('', clean_text(lesson['title']['rendered']))
+
+
+QUOTES = re.compile('["\'״׳”“’‘]')  # quotes, gershayim and geresh, in their many forms
+
+
+def topic_of(title, topics):
+    """
+    The first of the topics the title names, if any: as whole words, perhaps after prefixes ('דרך ה' isn't 'דרך התחיה',
+    but 'רמב"ם' is in 'לרמב"ם'), quotes and gershayim aside ('דרך ה'' is 'דרך ה')
+    """
+    plain = QUOTES.sub('', title)
+    for topic in topics:
+        names = [topic] if isinstance(topic, str) else topic  # a topic may be spelled several ways; the first names it
+        for name in names:
+            words = re.escape(QUOTES.sub('', name))
+            if re.search(rf'(?<![א-ת])[ובהלמשכ]{{0,3}}{words}(?![א-ת])', plain):  # perhaps after prefixes: 'לרמבם'
+                return Topic(names[0])
+    return None
 
 
 def prefixed(prefix, title):
