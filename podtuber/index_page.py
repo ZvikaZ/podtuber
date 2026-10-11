@@ -30,13 +30,12 @@ TEXTS = {
         'share': 'Share',
         'link_copied': 'Link copied',
         'all': 'All',
-        'episodes': 'Episodes ({count})',
-        'no_app': 'No podcast app? Install one, such as <a href="{pocketcasts}">Pocket Casts</a> or '
-                  '<a href="{antennapod}">AntennaPod</a>; or open a podcast&rsquo;s episodes here, to listen '
-                  'to them one by one.',
+        'episodes': 'Episode list ({count})',
+        'no_app': 'No podcast app? You can install one, such as <a href="{pocketcasts}">Pocket Casts</a> or '
+                  '<a href="{antennapod}">AntennaPod</a>, or listen to the episodes right from this page.',
         'script': {
-            'hide': 'Hide',
-            'download': 'Download',
+            'hide': 'Close',
+            'download': 'Listen / download',
             'lessons': 'Episodes ({count})',
             'to_series': 'To the podcast',
             'minutes': '{count} min',
@@ -58,12 +57,12 @@ TEXTS = {
         'share': 'שיתוף',
         'link_copied': 'הקישור הועתק',
         'all': 'הכל',
-        'episodes': 'שיעורים ({count})',
-        'no_app': 'אין לכם אפליקציית פודקאסטים? אפשר להתקין אחת, למשל <a href="{pocketcasts}">Pocket Casts</a> '
-                  'או <a href="{antennapod}">AntennaPod</a>; או לפתוח כאן את השיעורים של סדרה ולהאזין להם אחד אחד.',
+        'episodes': 'רשימת שיעורים ({count})',
+        'no_app': 'אין לכם אפליקציית פודקאסטים? אפשר להתקין, למשל, <a href="{pocketcasts}">Pocket Casts</a> '
+                  'או <a href="{antennapod}">AntennaPod</a>, או להאזין לשיעורים ישירות מהדף.',
         'script': {
-            'hide': 'הסתרה',
-            'download': 'הורדה',
+            'hide': 'סגירה',
+            'download': 'האזנה / הורדה',
             'lessons': 'שיעורים ({count})',
             'to_series': 'לסדרה',
             'minutes': "{count} דק'",
@@ -143,16 +142,25 @@ function flash(button, text) {
 for (const button of document.querySelectorAll('button[data-url]'))
   button.onclick = () => navigator.clipboard.writeText(button.dataset.url).then(() => flash(button, TEXTS.copied));
 
-// a series' own link is this page, scrolled to it; phones offer their share menu
+// a podcast's own link is this page, scrolled to it (#<feed id>), and an episode's, scrolled to it in its
+// podcast's list (#<feed id>/<its position there>); phones offer their share menu
+function shareLink(button, hash, title) {
+  const url = new URL(location.pathname, location.origin);
+  url.hash = hash;
+  if (navigator.share)
+    navigator.share({title, url: url.href}).catch(() => {});
+  else
+    navigator.clipboard.writeText(url.href).then(() => flash(button, TEXTS.link_copied));
+}
 for (const button of document.querySelectorAll('button[data-share]'))
-  button.onclick = () => {
-    const url = new URL(location.pathname, location.origin);
-    url.hash = button.dataset.share;
-    if (navigator.share)
-      navigator.share({title: button.dataset.title, url: url.href}).catch(() => {});
-    else
-      navigator.clipboard.writeText(url.href).then(() => flash(button, TEXTS.link_copied));
-  };
+  button.onclick = () => shareLink(button, button.dataset.share, button.dataset.title);
+
+function shareButton(hash, title) {
+  const button = element('button', TEXTS.share);
+  button.type = 'button';
+  button.onclick = () => shareLink(button, hash, title);
+  return button;
+}
 
 // every word searched for must appear in the text, even within a word ('פור' finds 'פורים', and so does
 // 'הכיפורים'); gershayim, quotes and niqqud don't count, so 'עין איה' finds 'עין אי"ה'
@@ -201,7 +209,7 @@ function element(tag, text, className) {
   return node;
 }
 
-function showLesson([series, title, description, date, minutes], query) {
+function showLesson([series, title, description, date, minutes, position], query) {
   const [feedId, seriesName, source] = lessons.series[series];
   const li = element('li');
   const name = element('div', title, 'name');
@@ -215,14 +223,14 @@ function showLesson([series, title, description, date, minutes], query) {
   const meta = [seriesName + (source ? ` [${source}]` : ''), date];
   if (minutes) meta.push(TEXTS.minutes.replace('{count}', minutes));
   const link = element('a', TEXTS.to_series);
-  link.href = '#' + feedId;
-  link.onclick = event => {  // the whole list, scrolled to the series, as a new page in the history
+  link.href = `#${feedId}/${position}`;
+  link.onclick = event => {  // the whole list, scrolled to the episode in its podcast, as a new page in the history
     event.preventDefault();
-    history.pushState(null, '', location.pathname + '#' + feedId);
+    history.pushState(null, '', location.pathname + link.hash);
     showAddress();
   };
   const links = element('div', null, 'links');
-  links.append(link);
+  links.append(link, shareButton(`${feedId}/${position}`, title));
   li.append(element('div', meta.join(' · '), 'meta'), links);
   return li;
 }
@@ -244,7 +252,7 @@ async function toggleEpisodes(li, open) {
   open = open ?? list.hidden;
   if (open && !list.children.length) {
     const episodes = await (await fetch(`lessons/${encodeURIComponent(li.id)}.json`)).json();
-    list.append(...episodes.map(([title, date, minutes, url]) => {
+    list.append(...episodes.map(([title, date, minutes, url], index) => {
       const item = element('li');
       const name = element('div', title, 'name');
       name.dir = 'auto';
@@ -255,7 +263,7 @@ async function toggleEpisodes(li, open) {
       download.target = '_blank';
       download.rel = 'noopener';
       const links = element('div', null, 'links');
-      links.append(download);
+      links.append(download, shareButton(`${li.id}/${index + 1}`, title));
       item.append(name, element('div', meta.join(' · '), 'meta'), links);
       return item;
     }));
@@ -279,18 +287,21 @@ function typed() {
 }
 
 // what the address says: a search (?q=...) of a rav's podcasts (&rav=...), or a podcast to scroll to (#...)
-function showAddress() {
+async function showAddress() {
   const url = new URL(location.href);
   input.value = url.searchParams.get('q') || '';
   rav = url.searchParams.get('rav') || '';
   showRav();
   search();
-  for (const li of seriesItems) li.classList.remove('chosen');
-  const chosen = url.hash && document.getElementById(decodeURIComponent(url.hash.slice(1)));
+  for (const li of document.querySelectorAll('li.chosen')) li.classList.remove('chosen');
+  const [feedId, position] = decodeURIComponent(url.hash.slice(1)).split('/');
+  const chosen = feedId && document.getElementById(feedId);
   if (chosen) {  // a podcast reached from a search, or by its shared link: with its episodes open
     chosen.classList.add('chosen');
-    toggleEpisodes(chosen, true);
-    chosen.scrollIntoView();
+    await toggleEpisodes(chosen, true);
+    const episode = position && chosen.querySelector(`.episodes > li:nth-child(${Number(position)})`);
+    if (episode) episode.classList.add('chosen');
+    (episode || chosen).scrollIntoView();
   }
 }
 
@@ -363,14 +374,16 @@ def write_index(podcasts, path, title, lang='en'):
             share=texts['share'],
         ))
         series.append([feed_id, name, source, rav])
-        lessons += [search_entry(len(series) - 1, episode, texts) for episode in podcast.episodes]
-        write_episodes(path.parent / EPISODES_DIR / f'{feed_id}.json', podcast, texts)
+        episodes = sorted(podcast.episodes, key=lambda episode: episode.publication_date)
+        lessons += [search_entry(len(series) - 1, episode, position, texts)
+                    for position, episode in enumerate(episodes, 1)]
+        write_episodes(path.parent / EPISODES_DIR / f'{feed_id}.json', episodes, texts)
 
     (path.parent / LESSONS_FILENAME).write_text(
         json.dumps({'series': series, 'lessons': lessons}, ensure_ascii=False, separators=(',', ':')),
         encoding='utf8')
     updated = texts['updated_date'](datetime.now(timezone.utc))
-    script_texts = {**texts['script'], 'copied': texts['copied'], 'link_copied': texts['link_copied']}
+    script_texts = {**texts['script'], 'copied': texts['copied'], 'link_copied': texts['link_copied'], 'share': texts['share']}
     path.write_text(PAGE.format(title=escape(title), lang=escape(lang), dir=texts['dir'],
                                 summary=texts['summary'].format(count=len(items), updated=updated),
                                 ravs=rav_buttons(podcasts, texts),
@@ -383,10 +396,9 @@ def write_index(podcasts, path, title, lang='en'):
                     encoding='utf8')
 
 
-def write_episodes(path, podcast, texts):
-    """the podcast's episodes, oldest first: [title, date, minutes, audio url] each"""
+def write_episodes(path, episodes, texts):
+    """a podcast's episodes: [title, date, minutes, audio url] each"""
     path.parent.mkdir(parents=True, exist_ok=True)
-    episodes = sorted(podcast.episodes, key=lambda episode: episode.publication_date)
     path.write_text(json.dumps([[episode.title or '', texts['latest_date'](episode.publication_date),
                                  minutes(episode), episode.media.url if episode.media else '']
                                 for episode in episodes], ensure_ascii=False, separators=(',', ':')),
@@ -408,13 +420,13 @@ def rav_buttons(podcasts, texts):
                                        for rav, label, count in buttons) + '</nav>\n'
 
 
-def search_entry(series, episode, texts):
-    """[series index, title, text to search besides the title, date, minutes]"""
+def search_entry(series, episode, position, texts):
+    """[series index, title, text to search besides the title, date, minutes, position in its series]"""
     date = texts['latest_date'](episode.publication_date)
     description = ' '.join(html.unescape(re.sub(r'<[^>]+>', ' ', html.unescape(episode.summary or ''))).split())
     if description == date:  # many episodes' description is only their date
         description = ''
-    return [series, episode.title or '', description, date, minutes(episode)]
+    return [series, episode.title or '', description, date, minutes(episode), position]
 
 
 def podcast_app_url(feed_url):
