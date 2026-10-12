@@ -1,11 +1,11 @@
 import io
 import logging
+import threading
 import time
-import urllib.error
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timedelta
 
+from curl_cffi import requests
 from tinytag import TinyTag
 
 from podtuber.cache import cache
@@ -13,7 +13,9 @@ from podtuber.cache import cache
 logger = logging.getLogger(__name__)
 
 HEAD_SIZE = 128 * 1024  # enough for the mp3's tags and first frames, from which its duration follows
-USER_AGENT = 'Mozilla/5.0 (compatible; podtuber)'
+# each thread's session, which keeps its connections open: hosts such as Bnei David's media server stop answering
+# a client that opens new connections too often
+_local = threading.local()
 
 
 def audio_info(url):
@@ -59,23 +61,34 @@ def prefetch(urls, workers=6):
                 cache.save()
 
 
+def _session():
+    if not hasattr(_local, 'session'):
+        _local.session = requests.Session(impersonate='chrome')
+    return _local.session
+
+
 def _probe(url):
     for attempt in range(3):
         try:
-            request = urllib.request.Request(url, headers={'User-Agent': USER_AGENT,
-                                                           'Range': f'bytes=0-{HEAD_SIZE - 1}'})
-            with urllib.request.urlopen(request, timeout=30) as response:
+            response = _session().get(url, headers={'Range': f'bytes=0-{HEAD_SIZE - 1}'}, timeout=30, stream=True)
+            try:
+                error = f'HTTP Error {response.status_code}: {response.reason}'  # (as is_missing expects)
+                if 400 <= response.status_code < 500:  # a missing file won't appear by retrying now
+                    return {'error': error}
+                if response.status_code >= 500:
+                    raise IOError(error)
                 if not response.headers.get('Content-Range'):
                     return {'error': f"not an audio file ({response.headers.get('Content-Type')})"}
-                head = response.read()
+                head = b''
+                for chunk in response.iter_content():
+                    head += chunk
+                    if len(head) >= HEAD_SIZE:
+                        break
                 size = int(response.headers['Content-Range'].split('/')[1])
-            tag = TinyTag.get(file_obj=io.BufferedReader(_PartialFile(head, size)), filename='audio.mp3')
+            finally:
+                response.close()
+            tag = TinyTag.get(file_obj=io.BufferedReader(_PartialFile(head[:HEAD_SIZE], size)), filename='audio.mp3')
             return {'size': size} if tag.duration is None else {'size': size, 'duration': round(tag.duration, 1)}
-        except urllib.error.HTTPError as err:
-            if 400 <= err.code < 500:  # a missing file won't appear by retrying now
-                return {'error': str(err)}
-            error = err
-            time.sleep(5)
         except Exception as err:
             error = err
             time.sleep(5)
