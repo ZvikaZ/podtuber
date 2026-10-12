@@ -3,7 +3,8 @@ podtuber
 
 Simple Python application to create podcast `.rss` files from YouTube playlists,
 and from the recorded lessons on [haravyosefkalner.com](https://www.haravyosefkalner.com/shiurim),
-[bneidavid.org](https://bneidavid.org), [meirtv.com](https://meirtv.com) and [hakotel.org.il](https://www.hakotel.org.il).
+[bneidavid.org](https://bneidavid.org), [meirtv.com](https://meirtv.com), [hakotel.org.il](https://www.hakotel.org.il)
+and [shaveihevron.org](https://shaveihevron.org).
 
 Podcasts that already exist can be listed too (`feeds = [...]` in `config.toml`): they're searched and listed
 on the index page, but subscribed to at their own feeds.
