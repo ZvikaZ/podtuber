@@ -4,3 +4,4 @@ dist/
 .venv/
 public/
 snapshots/
+refresh-snapshots.log
