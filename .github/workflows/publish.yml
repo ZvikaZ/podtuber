@@ -3,6 +3,7 @@ name: Publish podcasts
 on:
   schedule:
     - cron: '17 3 * * *'  # daily, so new lessons show up in the feeds
+    - cron: '17 10 * * *'  # and after the Meir TV snapshot, refreshed daily at 11:30 Israel time
   push:
     branches: [master]
   workflow_dispatch:
