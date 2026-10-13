@@ -23,6 +23,7 @@ TEXTS = {
         'summary': '{count} podcasts &middot; updated {updated}',
         'filter': 'Search a podcast or an episode&hellip;',
         'filter_label': 'Search podcasts and episodes',
+        'whole_words': 'Whole words only',
         'meta': '{episodes} episodes &middot; latest {latest}',
         'open': 'Open in podcast app',
         'copy': 'Copy RSS link',
@@ -50,6 +51,7 @@ TEXTS = {
         'summary': '{count} פודקאסטים &middot; עודכן {updated}',
         'filter': 'חיפוש סדרה או שיעור&hellip;',
         'filter_label': 'חיפוש סדרות ושיעורים',
+        'whole_words': 'מילים שלמות בלבד',
         'meta': '{episodes} פרקים &middot; אחרון {latest}',
         'open': 'פתיחה באפליקציית פודקאסטים',
         'copy': 'העתקת קישור RSS',
@@ -90,8 +92,10 @@ PAGE = """<!DOCTYPE html>
   h1 {{ font-size: 1.5rem; margin: 0 0 .25rem; }}
   h2 {{ font-size: 1.1rem; margin: 2rem 0 .5rem; }}
   .note {{ color: var(--muted); margin: 0 0 1.5rem; font-size: .9rem; }}
-  input {{ width: 100%; box-sizing: border-box; padding: .6rem .75rem; margin-bottom: 1rem; font: inherit;
-          color: inherit; background: transparent; border: 1px solid var(--line); border-radius: .5rem; }}
+  input[type=search] {{ width: 100%; box-sizing: border-box; padding: .6rem .75rem; margin-bottom: .5rem;
+          font: inherit; color: inherit; background: transparent; border: 1px solid var(--line);
+          border-radius: .5rem; }}
+  .option {{ display: block; margin-bottom: 1rem; color: var(--muted); font-size: .9rem; cursor: pointer; }}
   ul {{ list-style: none; margin: 0; padding: 0; }}
   li {{ padding: .9rem 0; border-top: 1px solid var(--line); scroll-margin-top: 1rem; }}
   li:target, li.chosen {{ background: color-mix(in srgb, var(--accent) 12%, transparent); }}
@@ -118,6 +122,7 @@ PAGE = """<!DOCTYPE html>
 <p class="note">{summary}</p>
 <p class="note">{no_app}</p>
 {ravs}<input type="search" placeholder="{filter}" aria-label="{filter_label}">
+<label class="option"><input type="checkbox" id="whole-words"> {whole_words}</label>
 <ul id="series">
 {items}
 </ul>
@@ -184,20 +189,30 @@ function shareButton(hash, title) {
 // 'הכיפורים'); gershayim, quotes and niqqud don't count, so 'עין איה' finds 'עין אי"ה'
 const normalize = text => text.replace(/[\u0591-\u05C7]/g, '').replace(/["'`״׳’‘”“]/g, '').toLowerCase();
 const queryWords = query => normalize(query).split(/\s+/).filter(Boolean);
+// with "whole words", a word searched for must be a word of the text, perhaps after prefixes ('פורים' finds
+// 'לפורים', but not 'הכיפורים'; 'פור' no longer finds 'פורים')
+const wholeWords = document.getElementById('whole-words');
+const escape = word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// where in the normalized text the word is (-1 if not there)
+function position(normalized, word) {
+  if (!wholeWords.checked) return normalized.indexOf(word);
+  const found = new RegExp(`(^|[^\\p{L}\\p{N}])([ובהלמשכ]{0,3})${escape(word)}(?![\\p{L}\\p{N}])`, 'u').exec(normalized);
+  return found ? found.index + found[1].length + found[2].length : -1;
+}
 function matcher(query) {
   const words = queryWords(query);
-  return text => { const normalized = normalize(text); return words.every(word => normalized.includes(word)); };
+  return text => { const normalized = normalize(text); return words.every(word => position(normalized, word) >= 0); };
 }
 
 // where the description, rather than the title, has what was searched for: the words around it
 function excerpt(text, query) {
   const normalized = normalize(text);
-  const word = queryWords(query).find(word => normalized.includes(word));
+  const word = queryWords(query).find(word => position(normalized, word) >= 0);
   if (!word) return '';
   // find the word in the text as written (with its gershayim and the like), by skipping what normalize removes
   const ignored = /[\u0591-\u05C7"'`״׳’‘”“]/;
   let at = 0;
-  for (let found = normalized.indexOf(word), seen = 0; at < text.length && seen < found; at++)
+  for (let found = position(normalized, word), seen = 0; at < text.length && seen < found; at++)
     if (!ignored.test(text[at])) seen++;
   const start = Math.max(0, at - 60), end = Math.min(text.length, at + word.length + 60);
   return (start ? '…' : '') + text.slice(start, end).trim() + (end < text.length ? '…' : '');
@@ -298,6 +313,7 @@ function typed() {
   url.hash = '';
   if (query) url.searchParams.set('q', query); else url.searchParams.delete('q');
   if (rav) url.searchParams.set('rav', rav); else url.searchParams.delete('rav');
+  if (wholeWords.checked) url.searchParams.set('w', '1'); else url.searchParams.delete('w');
   history.replaceState(null, '', url);
   search();
 }
@@ -307,6 +323,7 @@ async function showAddress() {
   const url = new URL(location.href);
   input.value = url.searchParams.get('q') || '';
   rav = url.searchParams.get('rav') || '';
+  wholeWords.checked = url.searchParams.get('w') === '1';
   showRav();
   search();
   for (const li of document.querySelectorAll('li.chosen')) li.classList.remove('chosen');
@@ -346,6 +363,7 @@ async function search() {
 }
 
 input.oninput = typed;
+wholeWords.onchange = typed;
 window.onpopstate = showAddress;  // back and forward
 showRav();
 if (location.search || location.hash) showAddress();
@@ -407,6 +425,7 @@ def write_index(podcasts, path, title, lang='en'):
                                 no_app=texts['no_app'].format(pocketcasts=PLAY_STORE + 'au.com.shiftyjelly.pocketcasts',
                                                               antennapod=PLAY_STORE + 'de.danoeh.antennapod'),
                                 filter=texts['filter'], filter_label=texts['filter_label'],
+                                whole_words=texts['whole_words'],
                                 items='\n'.join(items),
                                 texts=json.dumps(script_texts, ensure_ascii=False), script=SCRIPT),
                     encoding='utf8')
