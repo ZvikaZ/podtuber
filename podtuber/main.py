@@ -43,7 +43,8 @@ def get_parsers(url, podcast_config=None):
     elif netloc in ('www.haravyosefkalner.com', 'haravyosefkalner.com'):
         return kalner_parser.get_series_parsers(url)
     elif netloc in ('www.bneidavid.org', 'bneidavid.org'):
-        return bneidavid_parser.get_series_parsers(url)
+        return bneidavid_parser.get_series_parsers(url, (podcast_config or {}).get('topics', ()),
+                                                   (podcast_config or {}).get('split_by_year', False))
     elif netloc in ('www.meirtv.com', 'meirtv.com'):
         return meirtv_parser.get_series_parsers(url, (podcast_config or {}).get('rav'),
                                                 (podcast_config or {}).get('topics', ()))

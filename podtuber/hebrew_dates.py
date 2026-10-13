@@ -8,6 +8,25 @@ MONTHS = {'ניסן': 1, 'אייר': 2, 'סיון': 3, 'סיוון': 3, 'תמו�
           'חשון': 8, 'חשוון': 8, 'מרחשון': 8, 'מרחשוון': 8, 'כסלו': 9, 'כסליו': 9, 'טבת': 10, 'שבט': 11}
 
 
+def year_name(date):
+    """
+    The Hebrew year of the teaching year a date is in, as written: 'תשע"ג'. Teaching years start in Elul, so Elul
+    counts with the year that follows it.
+    """
+    hebrew = HebrewDate.from_pydate(date)
+    return number_name((hebrew.year + (hebrew.month == 6)) % 1000)
+
+
+def number_name(number):
+    """a number in Hebrew letters, with gershayim: 773 -> 'תשע"ג' (and 15, 16 as 'ט"ו', 'ט"ז')"""
+    letters = ''
+    for letter, value in sorted(LETTERS.items(), key=lambda item: -item[1]):
+        while number >= value and not (value == 10 and number in (15, 16)):
+            letters += letter
+            number -= value
+    return f'{letters[:-1]}"{letters[-1]}' if len(letters) > 1 else f"{letters}'"
+
+
 def gematria(letters):
     return sum(LETTERS.get(letter, 0) for letter in letters)
 

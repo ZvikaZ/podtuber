@@ -75,6 +75,7 @@ def get_series_parsers(url, rav_name=None):
                             order=lesson['id'])
                      for lesson in with_audio],
             number_pattern=r'\[(\d+)\]',
+            missing=len(series_lessons) - len(with_audio),
         ))
     return parsers
 

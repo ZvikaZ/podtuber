@@ -21,6 +21,34 @@ class Lesson:
     order: int = 0  # breaks ties between lessons of the same date, e.g. the site's own id
 
 
+INCOMPLETE = '(חסרים שיעורים)'  # after the name of a series some of whose lessons can't be heard
+
+QUOTES = re.compile('["\'״׳”“’‘]')  # quotes, gershayim and geresh, in their many forms
+
+
+class Topic(str):
+    """a topic of a rav's lessons, keying their podcast among his series' ids"""
+
+    @property
+    def name(self):
+        return str(self)
+
+
+def topic_of(title, topics):
+    """
+    The first of the topics the title names, if any: as whole words, perhaps after prefixes ('דרך ה' isn't 'דרך התחיה',
+    but 'רמב"ם' is in 'לרמב"ם'), quotes and gershayim aside ('דרך ה'' is 'דרך ה')
+    """
+    plain = QUOTES.sub('', title)
+    for topic in topics:
+        names = [topic] if isinstance(topic, str) else topic  # a topic may be spelled several ways; the first names it
+        for name in names:
+            words = re.escape(QUOTES.sub('', name))
+            if re.search(rf'(?<![א-ת])[ובהלמשכ]{{0,3}}{words}(?![א-ת])', plain):  # perhaps after prefixes: 'לרמבם'
+                return Topic(names[0])
+    return None
+
+
 # words that say nothing about a lesson: 'שיעור מספר 1', 'שיעור שני', 'פרק ד – המשך'
 GENERIC_WORD = re.compile(r"(שיעור|מספר|חלק|פסקה|פסקאות|פרק|המשך|ראשון|שני|שלישי|רביעי|חמישי|ו|[א-ת]['’]?|\d+|[-–,.:()'’\"״]+)")
 
@@ -107,8 +135,10 @@ class SeriesParser:
     """a series of lessons by one rav on one site, as a podcast"""
 
     def __init__(self, *, feed_id, name, rav_name, source_name, description, website, image, lessons,
-                 number_pattern=None):
+                 number_pattern=None, missing=0):
+        """missing: how many of the series' lessons have no recording (besides those whose file is gone)"""
         self.feed_id = feed_id
+        self.missing = missing
         self.name = name
         self.rav_name = rav_name
         self.source_name = source_name
@@ -118,7 +148,8 @@ class SeriesParser:
         self.lessons = sort_lessons(lessons, number_pattern)
 
     def get_name(self):
-        return f'{self.name} - {self.rav_name}'
+        incomplete = self.missing or any(is_missing(lesson.audio_url) for lesson in self.lessons)
+        return f'{self.name} {INCOMPLETE} - {self.rav_name}' if incomplete else f'{self.name} - {self.rav_name}'
 
     def get_feed_id(self):
         return self.feed_id

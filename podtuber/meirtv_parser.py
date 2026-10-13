@@ -6,7 +6,7 @@ from urllib.parse import urlparse, unquote, quote
 
 from podtuber.audio_info import prefetch
 from podtuber.cache import cache
-from podtuber.lessons import Lesson, SeriesParser, clean_text, strip_rav_name
+from podtuber.lessons import Lesson, SeriesParser, Topic, clean_text, strip_rav_name, topic_of
 from podtuber.wordpress import WordPressSite
 
 # its firewall refuses GitHub's servers, so runs there use what a run elsewhere saved (see refresh-snapshots.sh)
@@ -98,38 +98,13 @@ def get_series_parsers(url, rav_name=None, topics=()):
                             audio_url=lesson_audio_url(lesson),
                             order=lesson['id'])
                      for lesson in with_audio],
+            missing=len(series_lessons) - len(with_audio),
         ))
     return parsers
 
 
-class Topic(str):
-    """a topic of a rav's other lessons, keying their podcast among his series' ids"""
-
-    @property
-    def name(self):
-        return str(self)
-
-
 def lesson_title(lesson):
     return SLOGAN.sub('', clean_text(lesson['title']['rendered']))
-
-
-QUOTES = re.compile('["\'״׳”“’‘]')  # quotes, gershayim and geresh, in their many forms
-
-
-def topic_of(title, topics):
-    """
-    The first of the topics the title names, if any: as whole words, perhaps after prefixes ('דרך ה' isn't 'דרך התחיה',
-    but 'רמב"ם' is in 'לרמב"ם'), quotes and gershayim aside ('דרך ה'' is 'דרך ה')
-    """
-    plain = QUOTES.sub('', title)
-    for topic in topics:
-        names = [topic] if isinstance(topic, str) else topic  # a topic may be spelled several ways; the first names it
-        for name in names:
-            words = re.escape(QUOTES.sub('', name))
-            if re.search(rf'(?<![א-ת])[ובהלמשכ]{{0,3}}{words}(?![א-ת])', plain):  # perhaps after prefixes: 'לרמבם'
-                return Topic(names[0])
-    return None
 
 
 def prefixed(prefix, title):
