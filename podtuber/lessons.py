@@ -21,8 +21,6 @@ class Lesson:
     order: int = 0  # breaks ties between lessons of the same date, e.g. the site's own id
 
 
-INCOMPLETE = '(חסרים שיעורים)'  # after the name of a series some of whose lessons can't be heard
-
 QUOTES = re.compile('["\'״׳”“’‘]')  # quotes, gershayim and geresh, in their many forms
 
 
@@ -148,8 +146,11 @@ class SeriesParser:
         self.lessons = sort_lessons(lessons, number_pattern)
 
     def get_name(self):
-        incomplete = self.missing or any(is_missing(lesson.audio_url) for lesson in self.lessons)
-        return f'{self.name} {INCOMPLETE} - {self.rav_name}' if incomplete else f'{self.name} - {self.rav_name}'
+        return f'{self.name} - {self.rav_name}'
+
+    def missing_count(self):
+        """how many of the series' lessons can't be heard: with no recording, or whose file is gone"""
+        return self.missing + sum(1 for lesson in self.lessons if is_missing(lesson.audio_url))
 
     def get_feed_id(self):
         return self.feed_id

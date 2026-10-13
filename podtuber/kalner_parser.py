@@ -11,7 +11,6 @@ from podgen import Person, Media
 
 from podtuber.audio_info import audio_info, is_missing, media_details, prefetch
 from podtuber.hebrew_dates import parse_hebrew_date
-from podtuber.lessons import INCOMPLETE
 from podtuber.utils import monotonic_dates
 
 logger = logging.getLogger(__name__)
@@ -110,9 +109,10 @@ class KalnerSeriesParser:
         self.items = sort_lessons(items)
 
     def get_name(self):
-        incomplete = any(not item.get('audiosource') or is_missing(audio_url(item)) for item in self.items)
-        subject = f'{self.subject} {INCOMPLETE}' if incomplete else self.subject
-        return subject if RAV_NAME in self.subject else f'{subject} - {RAV_NAME}'
+        return self.subject if RAV_NAME in self.subject else f'{self.subject} - {RAV_NAME}'
+
+    def missing_count(self):
+        return sum(1 for item in self.items if not item.get('audiosource') or is_missing(audio_url(item)))
 
     def get_feed_id(self):
         # the rss filename must never change once subscribed, and Hebrew titles make awkward URLs

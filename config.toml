@@ -15,7 +15,7 @@ static_dir = 'static'
 snapshots_url = 'https://raw.githubusercontent.com/ZvikaZ/podtuber/snapshots/'
 
 # the index.html page's title and language
-title = 'שיעורים - פודקאסטים'
+title = 'שיעורים לדרך'
 language = 'he'
 
 # each playlist should have it's own [[podcasts]] section
@@ -57,7 +57,7 @@ url = 'https://bneidavid.org/rav/הרב-יוסף-קלנר/'
 language = 'he-IL'
 category = 'Religion & Spirituality'
 subcategory = 'Judaism'
-image = 'https://static.wixstatic.com/media/413a82_75d0cb10c9e64693a764d1b6a372e49a~mv2.png'
+image = 'https://zvikaz.github.io/podtuber/yosef-kalner.jpg'
 
 [[podcasts]]
 url = 'https://bneidavid.org/rav/הרב-אליעזר-קשתיאל/'
@@ -140,7 +140,7 @@ url = 'https://meirtv.com/rabbis/3788/'
 language = 'he-IL'
 category = 'Religion & Spirituality'
 subcategory = 'Judaism'
-image = 'https://static.wixstatic.com/media/413a82_75d0cb10c9e64693a764d1b6a372e49a~mv2.png'
+image = 'https://zvikaz.github.io/podtuber/yosef-kalner.jpg'
 
 # hakotel.org.il: a rabbi's category page is a podcast per series of his; a series' category page is that series
 [[podcasts]]
@@ -148,7 +148,7 @@ url = 'https://www.hakotel.org.il/category/מאגר-שיעורים-תורני/ר
 language = 'he-IL'
 category = 'Religion & Spirituality'
 subcategory = 'Judaism'
-image = 'https://static.wixstatic.com/media/413a82_75d0cb10c9e64693a764d1b6a372e49a~mv2.png'
+image = 'https://zvikaz.github.io/podtuber/yosef-kalner.jpg'
 
 # podcasts that already exist: listed and searched on the index page, but subscribed to at their own feeds
 # (rav names their rav, for the index page's buttons; source is shown next to their name)
@@ -270,6 +270,7 @@ url = 'https://www.haravyosefkalner.com/shiurim'
 language = 'he-IL'
 category = 'Religion & Spirituality'
 subcategory = 'Judaism'
+image = 'https://zvikaz.github.io/podtuber/yosef-kalner.jpg'
 
 # or just one series (the URL of the series' page)
 # [[podcasts]]

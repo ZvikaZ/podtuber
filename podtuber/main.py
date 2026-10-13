@@ -25,6 +25,7 @@ from podtuber import kalner_parser, bneidavid_parser, meirtv_parser, hakotel_par
 from podtuber.cache import cache
 from podtuber.dedup import deduplicate
 from podtuber.index_page import write_index
+from podtuber import presentation
 from podtuber.wordpress import remember_answers, save_snapshots, set_snapshots_url, stale_sites
 
 logging.basicConfig(level=logging.INFO)
@@ -101,56 +102,95 @@ def keep_published_feeds(feed_ids, base_url, output_dir):
 
 
 def create_rss(parser, podcast_config, config, output_dir):
+    """
+    The parser's podcast, written as a feed (unless it's a podcast that already exists elsewhere): named, titled and
+    described for podcast apps, with its own artwork; a course numbered, for apps to play in order
+    """
     logger.info(f'Handling playlist {parser.get_name()}')
-
-    sanitized_title = sanitize_filename(parser.get_name()).replace(' ', '_')
+    base_url = config['general']['base_url'].rstrip('/')
     rss_filename = f'{feed_id(parser)}.rss'
+    linked = hasattr(parser, 'get_linked_feed_url')
+    rav = podcast_config.get('rav') or parser.get_owner_name()
+    source = getattr(parser, 'get_source_name', lambda: '')()
+    name = presentation.short_name(parser.get_name(), rav)
+    course = not linked and presentation.is_course(name)
 
     podcast = Podcast()
-    podcast.name = parser.get_name() + getattr(parser, 'name_suffix', '')  # set when told apart from a duplicate
-    podcast.description = parser.get_description()
+    podcast.name = name + getattr(parser, 'name_suffix', '')  # set when told apart from a duplicate
     podcast.website = parser.get_website()
     podcast.explicit = False  # will be updated if one of the episodes is True
-    podcast.image = podcast_config.get('image') or parser.get_image()
     podcast.authors = parser.get_authors()
-
     try:
         podcast.category = Category(podcast_config['category'], podcast_config.get('subcategory'))
     except KeyError:
         pass
-    podcast.feed_url = f'{config["general"]["base_url"].strip("/")}/{rss_filename}'
+    podcast.feed_url = f'{base_url}/{rss_filename}'
     if podcast_config.get('owner_mail'):
         podcast.owner = Person(parser.get_owner_name(), podcast_config.get('owner_mail'))
-
     # TODO set automatically (e.g., https://github.com/pytube/pytube/issues/1742)
     podcast.language = podcast_config.get('language')
 
+    available = []
     for parsed_episode in parser.get_episodes():
         try:
             parsed_episode.check_availability()
         except Exception as err:
             logger.warning(f"Skipping '{parsed_episode.get_title()}' ({parsed_episode.get_link()}) because of: {err}")
         else:
-            episode = podcast.add_episode()
-            # print(clean_jpg_url(v.thumbnail_url))    #TODO use this for episodes as well?
-            episode.title = parsed_episode.get_title()
-            episode.summary = htmlencode(parsed_episode.get_summary())
-            episode.publication_date = parsed_episode.get_publication_date()
-            episode.explicit = parsed_episode.get_explicit()
-            if episode.explicit:
-                podcast.explicit = True
-            episode.media = parsed_episode.get_media(base_url=config["general"]["base_url"],
-                                                     series_title=sanitized_title)
-            episode.id = parsed_episode.get_id()
-            episode.link = parsed_episode.get_link()
-            episode.authors = parsed_episode.get_authors()
+            available.append(parsed_episode)
+    for number, parsed_episode in enumerate(available, 1):
+        episode = podcast.add_episode()
+        original_title, summary = parsed_episode.get_title(), parsed_episode.get_summary()
+        episode.original_title, episode.original_summary = original_title, summary  # for the index page
+        if linked:  # its titles are its publisher's
+            episode.title, episode.summary = original_title, htmlencode(summary)
+        else:
+            episode.title = presentation.episode_title(original_title, name, rav, number if course else None)
+            note = presentation.episode_note(number if course else None, len(available), name, rav, source)
+            episode.summary = htmlencode('\n'.join(part for part in (summary, original_title, note) if part))
+        episode.publication_date = parsed_episode.get_publication_date()
+        episode.explicit = parsed_episode.get_explicit()
+        if episode.explicit:
+            podcast.explicit = True
+        episode.media = parsed_episode.get_media(base_url=base_url, series_title=feed_id(parser))
+        episode.id = parsed_episode.get_id()
+        episode.link = parsed_episode.get_link()
+        episode.authors = parsed_episode.get_authors()
 
-    if hasattr(parser, 'get_linked_feed_url'):  # a podcast that already exists is subscribed to at its source
+    podcast.missing = getattr(parser, 'missing_count', lambda: 0)()
+    podcast.course = course
+    podcast.years = presentation.years_span([episode.publication_date.date() for episode in podcast.episodes])
+    if linked:  # a podcast that already exists is subscribed to at its source
+        podcast.description = parser.get_description()
+        podcast.image = podcast_config.get('image') or parser.get_image()
         podcast.feed_url = parser.get_linked_feed_url()
         return podcast
+    podcast.description = presentation.channel_description(name, rav, source, podcast.website, len(available),
+                                                           podcast.missing, podcast.years, base_url)
+    image = podcast_config.get('image') or parser.get_image()
+    # (a portrait: logos, such as the Bnei David one some rabbis' podcasts have instead, aren't drawn)
+    portrait = Path(config['general'].get('static_dir', 'static')) / image.removeprefix(base_url + '/')         if image and image.startswith(base_url + '/') and not image.endswith('.png') else None
+    art = f'{presentation.ART_DIR}/{feed_id(parser)}.jpg'
+    presentation.make_artwork(output_dir / art, name, rav, source, portrait)
+    podcast.image = f'{base_url}/{art}'
     podcast.rss_file(str(output_dir / rss_filename))
+    if course:
+        mark_as_course(output_dir / rss_filename)
     logger.info(f"Created '{output_dir / rss_filename}'\n")
     return podcast
+
+
+def mark_as_course(path):
+    """
+    Tells podcast apps the feed is a course, to list and play from its first lesson (itunes:type serial), and
+    numbers its lessons (itunes:episode), which podgen can't write itself
+    """
+    rss = path.read_text(encoding='utf8')
+    rss = rss.replace('</language>', '</language>\n    <itunes:type>serial</itunes:type>', 1)
+    parts = rss.split('</item>')
+    rss = ''.join(f'{part}  <itunes:episode>{number}</itunes:episode>\n    </item>' for number, part in
+                  enumerate(parts[:-1], 1)) + parts[-1]
+    path.write_text(rss, encoding='utf8')
 
 
 def main():
@@ -187,12 +227,14 @@ def main():
                 for parser, podcast_config in parsers]
     cache.save()
     # the index names each podcast's source itself, so it uses the names without the told-apart suffix
-    write_index([{'podcast': podcast, 'name': parser.get_name(), 'feed_id': feed_id(parser),
-                  'source': getattr(parser, 'get_source_name', lambda: '')(),
-                  'rav': podcast_config.get('rav') or parser.get_owner_name()}
+    write_index([{'podcast': podcast, 'name': podcast.name.removesuffix(getattr(parser, 'name_suffix', '')),
+                  'feed_id': feed_id(parser), 'source': getattr(parser, 'get_source_name', lambda: '')(),
+                  'rav': podcast_config.get('rav') or parser.get_owner_name(),
+                  'rav_image': podcast_config.get('image') or parser.get_image()}
                  for (parser, podcast), (_, podcast_config) in zip(podcasts, parsers)
                  if parser in listed and podcast.episodes], output_dir / 'index.html',
-                title=config['general'].get('title', 'Podcasts'), lang=config['general'].get('language', 'en'))
+                title=config['general'].get('title', 'Podcasts'), lang=config['general'].get('language', 'en'),
+                base_url=config['general']['base_url'], stale=stale_sites())
     logger.info(f"Created '{output_dir / 'index.html'}'")
     # published alongside, so a run's problems can be seen without access to its log
     (output_dir / 'status.json').write_text(json.dumps({
