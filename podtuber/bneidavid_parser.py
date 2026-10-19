@@ -6,8 +6,9 @@ from urllib.parse import urlparse, unquote, quote
 
 from podtuber.audio_info import prefetch
 from podtuber.cache import cache
-from podtuber.hebrew_dates import year_name
+from podtuber.hebrew_dates import gematria, year_name
 from podtuber.lessons import Lesson, SeriesParser, Topic, clean_text, strip_rav_name, topic_of
+from podtuber.presentation import year_of
 from podtuber.wordpress import WordPressSite
 
 SITE = WordPressSite('https://bneidavid.org')
@@ -22,6 +23,8 @@ HOLIDAY_SERIES = re.compile(r'^חגים\b')  # and his holidays' one: 'חגים 
 # 'מנהיגות [3]'
 SUB_SERIES = [re.compile(r'\|\s*([^|\[\]]+?)\s*\[(?:\d+|חלק\s*[א-ת]\'?)\]'), re.compile(r'^([^|\[\]]+?)\s*\[\d+\]\s*$')]
 NOT_A_SERIES = re.compile(r'^(שיעור\s+)?כללי')  # '... | כללי [2]'
+LESSON_NUMBER = re.compile(r'[\[{](\d+)\]')  # 'מאמר הדור [3]', or the odd typo, 'כוזרי {60]'
+MIN_TEACHING = 3  # lessons, for a course taught again to be a podcast of its own
 HOLIDAYS = [  # each a podcast of a rav's holiday lessons; a list is a holiday's names, the first naming it
     'ראש השנה', ['יום כיפור', 'יום הכיפורים', 'כיפור', 'הכיפורים'],
     ['סוכות', 'שמחת תורה', 'הושענא רבה', 'ארבעת המינים'], 'חנוכה', ['ט"ו בשבט', 'טו בשבט'],
@@ -66,6 +69,8 @@ def get_series_parsers(url, topics=(), split_by_year=False):
             split(by_series, series_id, lambda lesson: general_topic(lesson, topics, split_by_year))
         elif HOLIDAY_SERIES.match(name):
             split(by_series, series_id, lambda lesson: topic_of(clean_text(lesson['title']['rendered']), HOLIDAYS))
+        else:
+            split_teachings(by_series, series_id)
 
     SITE.find_audio(CACHE_SECTION, [lesson for series_lessons in by_series.values() for lesson in series_lessons],
                     audio_in_page)
@@ -76,7 +81,13 @@ def get_series_parsers(url, topics=(), split_by_year=False):
     for series_id, series_lessons in sorted(by_series.items(), key=lambda item: series_sort_key(item[0], series)):
         rav = ravs[collections.Counter(r for lesson in series_lessons for r in lesson['rav']).most_common(1)[0][0]]
         with_audio = [lesson for lesson in series_lessons if lesson_audio_url(lesson)]
-        if isinstance(series_id, tuple):  # a topic of a general series, in one year
+        if isinstance(series_id, tuple) and isinstance(series_id[1], Teaching):  # a course, as taught from a year on
+            series_id, teaching = series_id
+            name = strip_rav_name(clean_text(series[series_id]['name']), rav['name'])
+            match, _ = year_of(name)  # the year the series is named by is the first teaching's
+            name = f'{(name[:match.start()] + name[match.end():]) if match else name} - {teaching}'.strip(' -–')
+            feed_id = f'bneidavid-{series_id}-{gematria(teaching)}'
+        elif isinstance(series_id, tuple):  # a topic of a general series, in one year
             series_id, topic = series_id
             topic_id = hashlib.sha1(topic.encode()).hexdigest()[:8]
             name, feed_id = topic.name, f'bneidavid-{series_id}-topic-{topic_id}'
@@ -98,7 +109,7 @@ def get_series_parsers(url, topics=(), split_by_year=False):
                                 audio_url=lesson_audio_url(lesson),
                                 order=lesson['id'])
                          for lesson in with_audio],
-                number_pattern=r'[\[{](\d+)\]',  # 'מאמר הדור [3]', or the odd typo, 'כוזרי {60]'
+                number_pattern=LESSON_NUMBER.pattern,
                 missing=len(series_lessons) - len(with_audio),
             ))
     return parsers
@@ -113,6 +124,58 @@ def split(by_series, series_id, topic):
         if name and len(topic_lessons) > 1:  # a single lesson stays where it was
             by_series[(series_id, name)] = topic_lessons
             by_series[series_id] = [lesson for lesson in by_series[series_id] if lesson not in topic_lessons]
+
+
+class Teaching(str):
+    """a course taught again, from a teaching year on (as 'תשע"ג'), keying its podcast among the series' ids"""
+
+
+def split_teachings(by_series, series_id):
+    """
+    Moves a series' lessons to a podcast per teaching, when the rav taught the course again in later years,
+    numbering it from the start again: a teaching year whose first numbered lesson is [1] or [2] of what was taught
+    before ('יחסי הורים וילדים [1]', after 'משפחה [7] יחסי הורים וילדים'), or that has none numbered after numbered
+    ones, starts a teaching. A course whose numbering goes on into the next year, or starts again on its next part
+    ('נתיב העבודה [1]', after 'נתיב התורה [9]'), or within a year, stays one podcast; and a teaching of a lesson or
+    two joins the one before it.
+    """
+    by_year = collections.defaultdict(list)
+    for lesson in sorted(by_series[series_id], key=lambda lesson: (lesson['date_gmt'], lesson['id'])):
+        by_year[year_name(datetime.fromisoformat(lesson['date_gmt']).date())].append(lesson)
+    teachings, restarted, labels = [], False, set()
+    for year, year_lessons in by_year.items():
+        titles = [clean_text(lesson['title']['rendered']) for lesson in year_lessons]
+        numbered = [(int(match.group(1)), title) for title in titles if (match := LESSON_NUMBER.search(title))]
+        numbered_before = teachings and any(LESSON_NUMBER.search(clean_text(lesson['title']['rendered']))
+                                            for lesson in teachings[-1][1])
+        again = numbered and numbered[0][0] <= 2 and any(
+            label in seen or seen in label for label in [label_of(numbered[0][1])] for seen in labels
+            if min(len(label), len(seen)) >= 4)  # (not a stray letter)
+        if not teachings or again or (not numbered and numbered_before):
+            restarted |= bool(again)
+            teachings.append((year, []))
+        teachings[-1][1].extend(year_lessons)
+        labels |= {label_of(title) for title in titles}
+    for index in range(len(teachings) - 1, 0, -1):
+        if len(teachings[index][1]) < MIN_TEACHING:
+            teachings[index - 1][1].extend(teachings.pop(index)[1])
+    if len(teachings[0][1]) < MIN_TEACHING and len(teachings) > 1:
+        teachings[1] = (teachings[0][0], teachings[0][1] + teachings[1][1])
+        teachings.pop(0)
+    if restarted and len(teachings) > 1:
+        del by_series[series_id]
+        for year, teaching_lessons in teachings:
+            by_series[(series_id, Teaching(year))] = teaching_lessons
+
+
+def label_of(title):
+    """
+    What a lesson's title says it's a lesson of: the part with its number, or else its last part, in letters only:
+    'הערוץ המילולי- שיתוף | משפחה [5] יחסי הורים וילדים' -> 'משפחה יחסי הורים וילדים'
+    """
+    parts = title.split('|')
+    part = next((part for part in parts if LESSON_NUMBER.search(part)), parts[-1])
+    return ' '.join(re.sub(r'[^א-ת ]', ' ', LESSON_NUMBER.sub(' ', part)).split())
 
 
 def general_topic(lesson, topics, split_by_year):
