@@ -101,7 +101,7 @@ topics = [['עין איה שבת', 'שבת א'], ['עין איה ברכות', '�
 language = 'he-IL'
 category = 'Religion & Spirituality'
 subcategory = 'Judaism'
-image = 'https://zvikaz.github.io/podtuber/bneidavid.png'
+image = 'https://zvikaz.github.io/podtuber/yigal-levinstein.jpg'  # from haravyigal.co.il
 
 [[podcasts]]
 url = 'https://bneidavid.org/rav/הרב-גיורא-רדלר/'
@@ -122,7 +122,7 @@ url = 'https://bneidavid.org/rav/הרב-חיים-וידאל/'
 language = 'he-IL'
 category = 'Religion & Spirituality'
 subcategory = 'Judaism'
-image = 'https://zvikaz.github.io/podtuber/bneidavid.png'
+image = 'https://zvikaz.github.io/podtuber/haim-vidal.jpg'  # from zerufim.siach.org.il
 
 [[podcasts]]
 url = 'https://bneidavid.org/rav/הרב-אברהם-שילר/'
@@ -195,6 +195,7 @@ rav = 'הרב יהושע צוקרמן'
 language = 'he-IL'
 category = 'Religion & Spirituality'
 subcategory = 'Judaism'
+image = 'https://zvikaz.github.io/podtuber/yehoshua-zuckerman.jpg'  # from Meir TV
 
 # shaveihevron.org: a rabbi's page is a podcast per series of his (the site names many by surname first: rav names
 # him as the other sites do)
@@ -204,6 +205,7 @@ rav = 'הרב יהושע צוקרמן'
 language = 'he-IL'
 category = 'Religion & Spirituality'
 subcategory = 'Judaism'
+image = 'https://zvikaz.github.io/podtuber/yehoshua-zuckerman.jpg'
 
 [[podcasts]]
 url = 'https://meirtv.com/rabbis/3951/'
