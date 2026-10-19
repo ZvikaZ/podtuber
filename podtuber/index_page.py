@@ -34,25 +34,18 @@ TEXTS = {
     'he': {
         'dir': 'rtl',
         'date': lambda date: HebrewDate.from_pydate(date).hebrew_date_string(),  # 'ל׳ שבט תשפ״ג'
-        'tagline': 'שיעורי תורה מכמה אתרים, כפודקאסטים שמתעדכנים מעצמם: להאזנה בטלפון וברכב.',
-        'summary': '{count} סדרות של {ravs} רבנים · עודכן {updated}',
+        'tagline': 'שיעורי תורה כפודקאסטים, שמתעדכנים מעצמם.',
+        'summary': '{count} סדרות · {ravs} רבנים · עודכן {updated}',
         'stale': 'שיעורי {sites} מעודכנים עד {date}.',
         'howto': 'איך מאזינים?',
         'howto_body': (
-            '<ol><li>אפשר להאזין לכל שיעור כאן, בלחיצה על <b>האזנה</b>.</li>'
-            '<li>כדי לקבל שיעורים חדשים מעצמם, ולשמוע ברכב: מתקינים אפליקציית פודקאסטים (מומלץ: '
-            '<a href="{pocketcasts}">Pocket Casts</a>), ובסדרה לוחצים <b>הוספה ל-Pocket Casts</b>.</li>'
-            '<li>באפליקציה אחרת: בסדרה, תחת <b>עוד</b>, מעתיקים את כתובת הפודקאסט, ומוסיפים אותה באפליקציה '
-            '("הוספה לפי כתובת").</li></ol>'
-            '<h3>ברכב (Android Auto)</h3>'
-            '<ul><li>הסדרות שנוספו לאפליקציה מופיעות ברכב; סדרות של שיעורים ברצף מתחילות מהשיעור הראשון.</li>'
-            '<li>כדאי להפעיל באפליקציה הורדה אוטומטית של שיעורים חדשים, כדי שהשיעור לא ייעצר בלי קליטה.</li>'
-            '<li>את השיעורים הבאים בסדרה מוסיפים לתור (Up Next) לפני הנסיעה, והם יתנגנו זה אחר זה.</li>'
-            '<li>חיפוש קולי בעברית לא תמיד מוצא את הסדרה; עדיף לבחור אותה במסך.</li></ul>'),
+            '<ul><li>כאן: <b>האזנה</b>, ליד כל שיעור.</li>'
+            '<li>באפליקציה, עם שיעורים חדשים מעצמם: <b>הוספה לאפליקציה</b> (אין לכם? מומלצת '
+            '<a href="{pocketcasts}">Pocket Casts</a>). לא נפתחה? <b>העתקת הכתובת</b>, ובאפליקציה: הוספה לפי כתובת.</li></ul>'),
         'ravs_title': 'הרבנים',
         'series_count': '{count} סדרות',
         'new_title': 'שיעורים חדשים',
-        'all': 'כל הרבנים',
+        'scope': 'סינון לפי {rav} – ביטול',
         'filter': 'חיפוש סדרה או שיעור…',
         'filter_label': 'חיפוש סדרות ושיעורים',
         'whole_words': 'מילים שלמות בלבד',
@@ -66,18 +59,15 @@ TEXTS = {
         'hours': '{count} שעות',
         'minutes_total': '{count} דקות',
         'ongoing': 'מתעדכנת',
-        'missing': 'חסרים {count} שיעורים',
-        'missing_title': 'ל-{count} שיעורים בסדרה אין הקלטה באתר המקור',
-        'source': {'בני דוד': 'מקור: בני דוד', 'ערוץ מאיר': 'מקור: ערוץ מאיר', 'ישיבת הכותל': 'מקור: ישיבת הכותל',
-                   'שבי חברון': 'מקור: שבי חברון', 'אתר הרב': 'מקור: האתר של הרב', 'פודקאסט': 'הפודקאסט הרשמי'},
-        'open': 'הוספה ל-Pocket Casts',
+        'missing': lambda count: 'חסר שיעור' if count == 1 else f'חסרים {count} שיעורים',
+        'missing_title': 'שיעורים שאין להם הקלטה באתר המקור',
+        'source': {'אתר הרב': 'האתר של הרב', 'פודקאסט': 'פודקאסט רשמי'},
+        'open': 'הוספה לאפליקציה',
         'lessons_button': 'השיעורים ({count})',
-        'more': 'עוד',
-        'copy': 'העתקת כתובת הפודקאסט (לאפליקציות אחרות)',
-        'apple': 'פתיחה באפליקציית Podcasts (אייפון)',
-        'share': 'שיתוף הסדרה',
-        'footer': ('אתר לא רשמי, שמרכז שיעורים שפורסמו באתרים האלה: {sources}. כל הזכויות לשיעורים שמורות להם.'
-                   ' הצעות, בקשות לרבנים נוספים ודיווח על בעיות: <a href="{issues}">כאן</a>.'),
+        'copy': 'העתקת הכתובת',
+        'share': 'שיתוף',
+        'footer': ('אתר לא רשמי. השיעורים מ{sources}, וכל הזכויות להם. '
+                   'הצעות ודיווח על בעיות: <a href="{issues}">כאן</a>.'),
         'script': {
             'close': 'סגירה',
             'back': 'חזרה',
@@ -94,7 +84,7 @@ TEXTS = {
             'loading': 'טוען את מאגר השיעורים…',
             'copied': 'הכתובת הועתקה',
             'link_copied': 'הקישור הועתק',
-            'no_app': 'לא נפתחה אפליקציה? אפשר להעתיק את כתובת הפודקאסט, תחת "עוד".',
+            'no_app': 'לא נפתחה אפליקציה? אפשר להעתיק את הכתובת ולהוסיף אותה באפליקציה.',
             'from_first': 'מהראשון',
             'from_last': 'מהאחרון',
             'share_text': '"{name}" – {rav}, {count} שיעורים. להאזנה ולהוספה לאפליקציה:',
@@ -147,53 +137,56 @@ PAGE = """<!DOCTYPE html>
   .option { display: inline-flex; align-items: center; gap: .4rem; margin-top: .35rem; color: var(--muted);
             font-size: .9rem; cursor: pointer; min-height: 32px; }
   .option input { width: 1.1rem; height: 1.1rem; }
-  #ravs { display: flex; gap: .5rem; overflow-x: auto; padding-block: .5rem 0; scrollbar-width: thin; }
-  #ravs button { flex: none; padding: .45rem .9rem; border: 1px solid var(--line); border-radius: 99px;
-                 min-height: 40px; text-decoration: none; color: var(--fg); }
-  #ravs button[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-  .ravs { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: .75rem; padding: 0;
+  #scope { margin-inline-start: 1rem; padding: .2rem .7rem; border-radius: 99px; min-height: 32px; font-size: .85rem;
+           text-decoration: none; background: var(--accent); color: var(--on-accent); }
+  .ravs { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.75rem, 1fr)); gap: .5rem; padding: 0;
           list-style: none; }
-  .ravs button { width: 100%; display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .9rem .5rem;
-                 border: 1px solid var(--line); border-radius: .75rem; text-decoration: none; color: var(--fg);
+  .ravs button { width: 100%; display: flex; flex-direction: column; align-items: center; gap: .25rem; padding: .6rem .25rem;
+                 border: 1px solid var(--line); border-radius: .6rem; text-decoration: none; color: var(--fg);
                  min-height: 44px; }
-  .ravs img, .avatar { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; }
-  .avatar { display: grid; place-items: center; color: #fff; font-size: 1.6rem; font-weight: 600; }
-  .ravs .who { font-weight: 600; text-align: center; }
-  .ravs .count { color: var(--muted); font-size: .85rem; }
+  .ravs img, .avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; }
+  .avatar { display: grid; place-items: center; color: #fff; font-size: 1.25rem; font-weight: 600; }
+  .ravs .who { font-weight: 600; font-size: .9rem; text-align: center; line-height: 1.25; }
+  .ravs .count { color: var(--muted); font-size: .8rem; }
   ul.plain { list-style: none; margin: 0; padding: 0; }
   .series > li { display: grid; grid-template-columns: 72px 1fr; gap: .25rem .9rem; padding: .9rem 0;
                  border-top: 1px solid var(--line); scroll-margin-top: 9rem; }
   .series > li > * { min-width: 0; }
   .series .art { width: 72px; height: 72px; border-radius: .4rem; grid-row: span 2; }
   li.chosen { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  /* what opens when tapped: a rav, a series in a list, a lesson found or new */
+  .go, button { cursor: pointer; }
+  .go:hover:not(:has(.episodes:not([hidden]))), .ravs button:hover {
+    background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  .ravs button:hover { border-color: var(--accent); }
+  #series > .go { cursor: auto; }  /* the series alone is open already (and its lessons, so it isn't tinted) */
+  .btn:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .btn.primary:hover { background: var(--accent); filter: brightness(1.12); }
   .name { font-weight: 600; }
   .meta, .source { color: var(--muted); font-size: .875rem; }
   .badge { display: inline-block; font-size: .78rem; padding: .05rem .5rem; border-radius: 99px; margin-inline-start: .3rem; }
   .badge.missing { color: var(--warn); background: var(--warn-soft); }
   .badge.ongoing { color: var(--good); background: var(--good-soft); }
   .actions { grid-column: 1 / -1; display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-top: .4rem; }
-  .btn, .actions summary { display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
-         padding: .45rem 1rem; border-radius: .5rem; border: 1px solid var(--line); font: inherit; font-size: .95rem;
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
+         padding: .45rem .9rem; border-radius: .5rem; border: 1px solid var(--line); font: inherit; font-size: .95rem;
          color: var(--accent); background: transparent; text-decoration: none; cursor: pointer; }
   .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
-  details.more { position: relative; }
-  details.more summary { list-style: none; }
-  details.more summary::-webkit-details-marker { display: none; }
-  details.more .menu { position: absolute; inset-inline-end: 0; top: calc(100% + .25rem); z-index: 1; display: grid;
-         gap: .25rem; min-width: 15rem; padding: .4rem; background: var(--bg); border: 1px solid var(--line);
-         border-radius: .5rem; box-shadow: 0 6px 18px rgb(0 0 0 / .12); }
-  .menu .btn { justify-content: flex-start; border: 0; width: 100%; }
+  .btn.quiet { border-color: transparent; padding-inline: .5rem; }  /* secondary: copying and sharing */
+  .secondary { display: flex; margin-inline-start: auto; }  /* together, at the row's end, or wrapped below */
   .episodes { grid-column: 1 / -1; margin-top: .5rem; }
   .episodes-bar { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; justify-content: space-between; }
   .episodes ol { list-style: none; margin: .25rem 0 0; padding: 0; }
-  .episodes ol > li, #lessons li { padding: .6rem 0; border-top: 1px solid var(--line); }
+  .episodes ol > li, #lessons li, #new li { padding: .6rem 0; border-top: 1px solid var(--line); }
   .num { color: var(--muted); font-variant-numeric: tabular-nums; margin-inline-end: .35rem; }
   .description { display: block; text-align: start; color: var(--muted); font: inherit; font-size: .9rem; background: none;
                  border: 0; padding: 0; cursor: pointer; display: -webkit-box; -webkit-box-orient: vertical;
                  -webkit-line-clamp: 3; overflow: hidden; }
   .description[aria-expanded=true] { -webkit-line-clamp: unset; }
-  .links { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .3rem; }
-  .links .btn { min-height: 40px; padding: .3rem .8rem; }
+  #browse .rav-name { display: none; }  /* the rav's page names him once, as its title */
+  .row { display: flex; gap: .25rem .5rem; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+  .links { display: flex; gap: .4rem; }
+  .links .btn { min-height: 34px; padding: .15rem .7rem; font-size: .875rem; }
   mark { background: color-mix(in srgb, var(--accent) 25%, transparent); color: inherit; border-radius: .15rem; }
   .group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
   .sort { color: var(--muted); font-size: .9rem; }
@@ -224,7 +217,7 @@ PAGE = """<!DOCTYPE html>
 <div class="bar">
 <input type="search" id="search" placeholder="%FILTER%" aria-label="%FILTER_LABEL%" autocomplete="off">
 <label class="option"><input type="checkbox" id="whole-words"> %WHOLE_WORDS%</label>
-<nav id="ravs" aria-label="%RAVS_TITLE%">%RAV_PILLS%</nav>
+<button type="button" id="scope" hidden></button>
 </div>
 <main id="content">
 <p id="status" class="note" aria-live="polite"></p>
@@ -262,7 +255,7 @@ const LESSONS_URL = %LESSONS_URL%;
 </html>
 """
 
-ITEM = """<li id="{feed_id}" data-rav="{rav}" data-name="{name}" data-search="{name} {rav} {source}" data-group="{group}"
+ITEM = """<li id="{feed_id}" class="go" data-go="{feed_id}" data-rav="{rav}" data-name="{name}" data-search="{name} {rav} {source}" data-group="{group}"
     data-order="{order}" data-updated="{updated}" data-size="{size}">
   <img class="art" src="{art}" alt="" loading="lazy" width="72" height="72">
   <div class="name" dir="auto">{name}</div>
@@ -270,11 +263,8 @@ ITEM = """<li id="{feed_id}" data-rav="{rav}" data-name="{name}" data-search="{n
   <div class="actions">
     {open}
     <button type="button" class="btn" data-episodes aria-expanded="false" aria-controls="ep-{feed_id}">{lessons_button}</button>
-    <details class="more"><summary>{more}</summary><div class="menu">
-      <button type="button" class="btn" data-copy="{url}">{copy}</button>
-      {apple}
-      <button type="button" class="btn" data-share data-title="{share_title}" data-text="{share_text}">{share}</button>
-    </div></details>
+    <span class="secondary"><button type="button" class="btn quiet" data-copy="{url}">{copy}</button>
+    <button type="button" class="btn quiet" data-share data-title="{share_title}" data-text="{share_text}">{share}</button></span>
   </div>
   <div class="episodes" id="ep-{feed_id}" hidden></div>
 </li>"""
@@ -353,14 +343,18 @@ function excerpt(text, query) {
 const items = [...document.querySelectorAll('#series > li')];
 const byId = Object.fromEntries(items.map(li => [li.id, li]));
 
-// opening a podcast app: if the page is still in view a moment later, none opened
-for (const link of document.querySelectorAll('a[data-app]'))
+// opening a podcast app: the iPhone's own by podcast://, any other by pcast:// (Pocket Casts, Podcast Addict...);
+// if the page is still in view a moment later, none opened
+const iphone = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+for (const link of document.querySelectorAll('a[data-app]')) {
+  if (iphone) link.href = link.href.replace(/^pcast:/, 'podcast:');
   link.addEventListener('click', () => {
     let left = false;
     const away = () => left = true;
     document.addEventListener('visibilitychange', away, {once: true});
     setTimeout(() => { if (!left && document.visibilityState === 'visible') toast(TEXTS.no_app); }, 1800);
   });
+}
 for (const button of document.querySelectorAll('button[data-copy]'))
   button.onclick = () => copy(button.dataset.copy, TEXTS.copied);
 function shareLink(hash, title, text) {
@@ -378,6 +372,11 @@ function listenLink(url) {
   link.target = '_blank';
   link.rel = 'noopener';
   return link;
+}
+function row(meta, links) {  // a lesson's date and length, and its buttons beside them
+  const line = element('div', null, 'row');
+  line.append(element('div', meta.join(' · '), 'meta'), links);
+  return line;
 }
 function descriptionButton(text) {  // three lines of it, all of it when tapped
   const button = element('button', text, 'description');
@@ -412,7 +411,7 @@ async function toggleEpisodes(li, open) {
       share.type = 'button';
       share.onclick = () => shareLink(`${li.id}/${index + 1}`, title);
       links.append(listenLink(url), share);
-      item.append(element('div', meta.join(' · '), 'meta'), links);
+      item.append(row(meta, links));
       return item;
     }));
     const bar = element('div', null, 'episodes-bar');
@@ -439,10 +438,10 @@ for (const button of document.querySelectorAll('button[data-episodes]'))
 // alone (#feed, or #feed/n for one of its lessons); the address is kept up to date, so any view can be shared,
 // and Back returns to the one before
 let rav = '';
-const pills = [...document.querySelectorAll('#ravs button')];
-for (const pill of pills) pill.onclick = () => { rav = pill.dataset.rav; typed(); };
+const scope = $('scope');  // shown while a rav is chosen: his series, and searching only them; tapped, all ravs
+scope.onclick = () => { rav = ''; typed(true); };
 for (const card of document.querySelectorAll('.ravs button'))
-  card.onclick = () => { rav = card.dataset.rav; typed(); window.scrollTo({top: 0}); };
+  card.onclick = () => { rav = card.dataset.rav; typed(true); window.scrollTo({top: 0}); };
 const sortSelect = $('sort');
 sortSelect.value = store.get('sort') || 'name';
 sortSelect.onchange = () => { store.set('sort', sortSelect.value); showBrowse(); };
@@ -481,7 +480,8 @@ wholeWords.onchange = typed;
 
 function lessonResult([series, title, description, date, minutes, position, url], query) {
   const [feedId, seriesName, rav] = lessons.series[series];
-  const li = element('li');
+  const li = element('li', null, 'go');
+  li.dataset.go = `${feedId}/${position}`;
   const name = element('div', null, 'name');
   name.dir = 'auto';
   name.append(highlighted(title, query));
@@ -503,7 +503,7 @@ function lessonResult([series, title, description, date, minutes, position, url]
   };
   const links = element('div', null, 'links');
   links.append(listenLink(url), link);
-  li.append(element('div', meta.join(' · '), 'meta'), links);
+  li.append(row(meta, links));
   return li;
 }
 
@@ -529,13 +529,13 @@ async function showResults(query) {
     : wholeWords.checked ? TEXTS.nothing_whole : TEXTS.nothing;
 }
 
-function typed() {
+function typed(push) {  // choosing a rav, or leaving him, is a new page in the history; typing isn't
   const url = new URL(location.href);
   url.hash = '';
   const query = input.value.trim();
   for (const [key, value] of [['q', query], ['rav', rav], ['w', wholeWords.checked ? '1' : '']])
     if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
-  history.replaceState(null, '', url);
+  if (push) history.pushState(null, '', url); else history.replaceState(null, '', url);
   show();
 }
 
@@ -544,7 +544,8 @@ async function show() {
   input.value = url.searchParams.get('q') || '';
   rav = url.searchParams.get('rav') || '';
   wholeWords.checked = url.searchParams.get('w') === '1';
-  for (const pill of pills) pill.setAttribute('aria-pressed', pill.dataset.rav === rav);
+  scope.hidden = !rav;
+  scope.textContent = TEXTS.scope.replace('{rav}', rav);
   $('status').textContent = '';
   for (const li of document.querySelectorAll('li.chosen')) li.classList.remove('chosen');
   const [feedId, position] = decodeURIComponent(url.hash.slice(1)).split('/');
@@ -575,6 +576,15 @@ async function show() {
     (episode || li).scrollIntoView({block: episode ? 'center' : 'start'});
   }
 }
+// a series in a list, or a lesson found or new, opens when tapped anywhere but its buttons (and not when its
+// text is being selected)
+document.addEventListener('click', event => {
+  const row = event.target.closest('.go');
+  if (!row || row.parentElement.id === 'series' || event.target.closest('a, button, .episodes')
+      || getSelection().toString()) return;
+  history.pushState(null, '', location.pathname + location.search + '#' + row.dataset.go);
+  show();
+});
 window.onpopstate = show;
 window.onhashchange = show;
 show();
@@ -611,18 +621,18 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         if now - latest < ONGOING:
             badges += f' <span class="badge ongoing">{texts["ongoing"]}</span>'
         if getattr(podcast, 'missing', 0):
-            badges += (f' <span class="badge missing" title="{texts["missing_title"].format(count=podcast.missing)}">'
-                       f'{texts["missing"].format(count=podcast.missing)}</span>')
+            badges += (f' <span class="badge missing" title="{texts["missing_title"]}">'
+                       f'{texts["missing"](podcast.missing)}</span>')
         group, order = group_of(name)
         items.append(ITEM.format(
             feed_id=escape(feed_id), rav=escape(rav), name=escape(name), source=escape(source), group=group, order=order,
             updated=latest.isoformat(), size=len(episodes),
             art=escape((podcast.image or '').removeprefix(base_url)), meta=' · '.join(meta), badges=badges,
-            source_label=escape(texts['source'].get(source, source)),
+            source_label=f'<span class="rav-name">{escape(rav)}{" · " if source else ""}</span>'
+                         + escape(texts['source'].get(source, source)),
             open=f'<a class="btn primary" data-app href="{escape(podcast_app_url(podcast.feed_url))}">{texts["open"]}</a>',
             lessons_button=texts['lessons_button'].format(count=len(episodes)),
-            more=texts['more'], url=escape(podcast.feed_url), copy=texts['copy'],
-            apple=f'<a class="btn" href="{escape(apple_podcasts_url(podcast.feed_url))}">{texts["apple"]}</a>',
+            url=escape(podcast.feed_url), copy=texts['copy'],
             share=texts['share'], share_title=escape(name),
             share_text=escape(texts['script']['share_text'].format(name=name, rav=rav, count=len(episodes))),
         ))
@@ -648,13 +658,13 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         'STALE': stale_note(stale, texts),
         'HOWTO': texts['howto'], 'HOWTO_BODY': texts['howto_body'].format(pocketcasts=POCKET_CASTS),
         'FILTER': texts['filter'], 'FILTER_LABEL': texts['filter_label'], 'WHOLE_WORDS': texts['whole_words'],
-        'RAVS_TITLE': texts['ravs_title'], 'RAV_PILLS': rav_pills(ravs, texts), 'RAV_CARDS': rav_cards(ravs, texts),
+        'RAVS_TITLE': texts['ravs_title'], 'RAV_CARDS': rav_cards(ravs, texts),
         'NEW_TITLE': texts['new_title'], 'NEW': new_lessons(newest, texts),
         'SORT': texts['sort'], 'SORT_NAME': texts['sort_name'], 'SORT_UPDATED': texts['sort_updated'],
         'SORT_SIZE': texts['sort_size'],
         'ITEMS': '\n'.join(items),
         'FOOTER': texts['footer'].format(sources=', '.join(sources), issues=ISSUES_URL),
-        'TEXTS': json.dumps({**texts['script'], 'groups': texts['groups']}, ensure_ascii=False),
+        'TEXTS': json.dumps({**texts['script'], 'groups': texts['groups'], 'scope': texts['scope']}, ensure_ascii=False),
         'LESSONS_URL': json.dumps(lessons_file),
         'SCRIPT': SCRIPT,
     }
@@ -689,11 +699,6 @@ def rav_summary(podcasts, base_url):
     return [(rav, count, portraits.get(rav)) for rav, count in counts.most_common()]
 
 
-def rav_pills(ravs, texts):
-    return ''.join([f'<button type="button" data-rav="">{texts["all"]}</button>'] +
-                   [f'<button type="button" data-rav="{escape(rav)}">{escape(rav)}</button>' for rav, _, _ in ravs])
-
-
 def rav_cards(ravs, texts):
     cards = []
     for rav, count, portrait in ravs:
@@ -712,10 +717,12 @@ def new_lessons(newest, texts):
                                                          reverse=True)[:NEW_LESSONS]:
         url = escape(audio_url(episode))
         lines.append(
-            f'<li><div class="name" dir="auto">{escape(episode.original_title or episode.title or "")}</div>'
-            f'<div class="meta">{escape(name)} · {escape(rav)} · {texts["date"](episode.publication_date.date())}</div>'
+            f'<li class="go" data-go="{escape(feed_id)}/{position}">'
+            f'<div class="name" dir="auto">{escape(episode.original_title or episode.title or "")}</div>'
+            f'<div class="row"><div class="meta">{escape(name)} · {escape(rav)} · '
+            f'{texts["date"](episode.publication_date.date())}</div>'
             f'<div class="links"><a class="btn" href="{url}" target="_blank" rel="noopener">{texts["script"]["listen"]}</a>'
-            f'<a class="btn" href="#{escape(feed_id)}/{position}">{texts["script"]["to_series"]}</a></div></li>')
+            f'<a class="btn" href="#{escape(feed_id)}/{position}">{texts["script"]["to_series"]}</a></div></div></li>')
     return ''.join(lines)
 
 
@@ -768,10 +775,5 @@ def search_entry(series, episode, position, texts):
 
 
 def podcast_app_url(feed_url):
-    """Pocket Casts (and some other apps) open feeds by the pcast:// scheme"""
+    """Pocket Casts (and some other apps) open feeds by the pcast:// scheme; the page makes it podcast:// on iPhones"""
     return 'pcast://' + feed_url.removeprefix(f'{urlparse(feed_url).scheme}://')
-
-
-def apple_podcasts_url(feed_url):
-    """the iPhone's Podcasts app opens feeds by the podcast:// scheme"""
-    return 'podcast://' + feed_url.removeprefix(f'{urlparse(feed_url).scheme}://')
