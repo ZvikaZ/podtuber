@@ -110,7 +110,8 @@ PAGE = """<!DOCTYPE html>
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
-  :root { --bg: #fbfaf7; --fg: #1d1c1a; --muted: #595650; --line: #e4e1da; --accent: #2f5d8a; --on-accent: #ffffff;
+  :root { color-scheme: light dark;  /* the browser's own controls (checkbox, select) in the page's mode */
+          --bg: #fbfaf7; --fg: #1d1c1a; --muted: #595650; --line: #e4e1da; --accent: #2f5d8a; --on-accent: #ffffff;
           --soft: #edf2f7; --warn: #8a5a14; --warn-soft: #fbefd9; --good: #2e6b3c; --good-soft: #e3f1e6; }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #181816; --fg: #ecebe6; --muted: #aeaba2; --line: #33322e; --accent: #8db8e3; --on-accent: #10161d;
@@ -141,7 +142,7 @@ PAGE = """<!DOCTYPE html>
            text-decoration: none; background: var(--accent); color: var(--on-accent); }
   .ravs { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.75rem, 1fr)); gap: .5rem; padding: 0;
           list-style: none; }
-  .ravs button { width: 100%; display: flex; flex-direction: column; align-items: center; gap: .25rem; padding: .6rem .25rem;
+  .ravs button { width: 100%; background: transparent; display: flex; flex-direction: column; align-items: center; gap: .25rem; padding: .6rem .25rem;
                  border: 1px solid var(--line); border-radius: .6rem; text-decoration: none; color: var(--fg);
                  min-height: 44px; }
   .ravs img, .avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; }
