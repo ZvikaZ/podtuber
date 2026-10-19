@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the site's colors -->
+<resources>
+    <color name="accent">#2F5D8A</color>
+    <color name="background">#FBFAF7</color>
+    <color name="text">#1D1C1A</color>
+    <color name="muted">#595650</color>
+    <color name="line">#E4E1DA</color>
+</resources>

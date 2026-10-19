@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">שיעורים לדרך</string>
+    <string name="tab_continue">המשך</string>
+    <string name="tab_newest">חדשים</string>
+    <string name="tab_ravs">רבנים</string>
+    <string name="series_count">%d סדרות</string>
+    <string name="lessons_count">%d שיעורים</string>
+    <string name="minutes">%d דק\'</string>
+    <string name="lesson_of">שיעור %1$d מתוך %2$d</string>
+    <string name="nothing_to_continue">עוד לא האזנת לשיעורים. השיעורים שתתחיל יופיעו כאן.</string>
+    <string name="offline">אין חיבור לאינטרנט, ואין עדיין שיעורים שמורים בטלפון.</string>
+    <string name="back">חזרה</string>
+</resources>

@@ -17,6 +17,9 @@ from podtuber import presentation
 
 LESSONS_PREFIX = 'lessons'  # the search index, lessons.<version>.json, versioned so browsers may keep it
 EPISODES_DIR = 'lessons'  # a file per podcast, of its episodes, for listing them on the page
+CATALOG_FILENAME = 'catalog.json'  # the app's (android/), see write_catalog
+CATALOG_VERSION = 1  # raised when the catalog changes in a way an installed app can't read
+NEWEST_IN_CATALOG = 50
 PLAY_STORE = 'https://play.google.com/store/apps/details?id='
 POCKET_CASTS = PLAY_STORE + 'au.com.shiftyjelly.pocketcasts'
 ISSUES_URL = 'https://github.com/ZvikaZ/podtuber/issues'
@@ -605,7 +608,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
     texts = TEXTS.get(lang.split('-')[0], TEXTS['he'])
     base_url = base_url.rstrip('/') + '/'
     now = datetime.now(timezone.utc)
-    items, series, lessons, newest = [], [], [], []
+    items, series, lessons, newest, catalog = [], [], [], [], []
     for entry in sorted(podcasts, key=lambda entry: (entry['name'], entry['source'])):
         podcast, name, source, feed_id, rav = (entry[key] for key in ('podcast', 'name', 'source', 'feed_id', 'rav'))
         episodes = sorted(podcast.episodes, key=lambda episode: episode.publication_date)
@@ -638,6 +641,10 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
             share_text=escape(texts['script']['share_text'].format(name=name, rav=rav, count=len(episodes))),
         ))
         series.append([feed_id, name, rav])
+        catalog.append({'id': feed_id, 'name': name, 'rav': rav, 'group': group, 'order': order,
+                        'lessons': len(episodes), 'updated': latest.isoformat(), 'years': getattr(podcast, 'years', ''),
+                        'course': bool(getattr(podcast, 'course', False)), 'source': source,
+                        'art': (podcast.image or '').removeprefix(base_url)})
         lessons += [search_entry(len(series) - 1, episode, position, texts)
                     for position, episode in enumerate(episodes, 1)]
         newest += [(episode, position, feed_id, name, rav) for position, episode in enumerate(episodes, 1)][-3:]
@@ -650,6 +657,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
     (path.parent / lessons_file).write_text(index, encoding='utf8')
 
     ravs = rav_summary(podcasts, base_url)
+    write_catalog(path.parent / CATALOG_FILENAME, now, ravs, catalog, newest, texts)
     sources = sorted({entry['source'] for entry in podcasts if entry['source']})
     replacements = {
         'LANG': escape(lang), 'DIR': texts['dir'], 'TITLE': escape(title), 'TAGLINE': escape(texts['tagline']),
@@ -679,6 +687,26 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         'background_color': '#fbfaf7', 'theme_color': '#2f5d8a',
         'icons': [{'src': f'icon-{size}.png', 'sizes': f'{size}x{size}', 'type': 'image/png'} for size in (192, 512)],
     }, ensure_ascii=False), encoding='utf8')
+
+
+def write_catalog(path, now, ravs, series, newest, texts):
+    """
+    What the app (android/) browses, at a name that doesn't change: the ravs (by number of series), their series, and
+    the newest lessons; a series' lessons are in its own file (lessons/<id>.json), as the page's are. Paths of images
+    are relative to the site.
+    """
+    path.write_text(json.dumps({
+        'version': CATALOG_VERSION,
+        'updated': now.isoformat(timespec='seconds'),
+        'groups': texts['groups'],
+        'ravs': [{'name': rav, 'series': count, 'image': portrait} for rav, count, portrait in ravs],
+        'series': series,
+        'newest': [{'series': feed_id, 'position': position, 'title': episode.original_title or episode.title or '',
+                    'date': episode.publication_date.isoformat(), 'minutes': minutes(episode),
+                    'url': audio_url(episode)}
+                   for episode, position, feed_id, name, rav in sorted(newest, key=lambda item: item[0].publication_date,
+                                                                       reverse=True)[:NEWEST_IN_CATALOG]],
+    }, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
 
 
 def group_of(name):

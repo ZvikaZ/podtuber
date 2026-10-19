@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the site's favicon: an open book, with sound waves over it (centered in the adaptive icon's safe zone) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="104" android:viewportHeight="104">
+    <group android:translateX="20" android:translateY="20">
+        <path android:fillColor="#FBFAF7"
+            android:pathData="M10,27c8,-4 16,-3 22,2 6,-5 14,-6 22,-2v25c-8,-4 -16,-3 -22,2 -6,-5 -14,-6 -22,-2z" />
+        <path android:strokeColor="#2F5D8A" android:strokeWidth="2.5" android:pathData="M32,29v25" />
+        <path android:strokeColor="#FBFAF7" android:strokeWidth="3.5" android:strokeLineCap="round"
+            android:pathData="M23,17q9,-8 18,0M18,12q14,-12 28,0" />
+    </group>
+</vector>
