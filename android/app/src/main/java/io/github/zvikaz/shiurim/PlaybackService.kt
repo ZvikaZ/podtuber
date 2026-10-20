@@ -46,10 +46,20 @@ class PlaybackService : MediaLibraryService() {
         const val SAVE_EVERY = 10_000L
         const val RECENT_ROOT = "recent"  // the root the system asks for to offer resuming, after a restart
         const val SEEK = 30_000L  // back and forward, in the car's player and the notification
+        // the player's buttons are custom commands, even those a player command would do: Android Auto (by the
+        // platform session) is only given a session's custom commands, and without a button of its own in the back
+        // slot it shows "previous", which goes back to the lesson's start
+        const val BACK = "back"
+        const val FORWARD = "forward"
+        const val NEXT = "next"
         const val SPEED = "speed"  // the player's speed, to the next one of SPEEDS
         const val SUBSCRIBE = "subscribe"  // a series (or the playing lesson's), to a podcast app
         const val CHANNEL = "subscribe"
-        val SPEEDS = listOf(1.0f, 1.2f, 1.5f, 1.8f, 2.0f, 0.8f)
+        // with the icons that show them (written by tools/speed_icons.py)
+        val SPEEDS = listOf(1.0f to R.drawable.ic_speed_1, 1.2f to R.drawable.ic_speed_1_2,
+            1.5f to R.drawable.ic_speed_1_5, 1.8f to R.drawable.ic_speed_1_8, 2.0f to R.drawable.ic_speed_2,
+            0.8f to R.drawable.ic_speed_0_8)
+        val COMMANDS = listOf(BACK, FORWARD, NEXT, SPEED, SUBSCRIBE).map { SessionCommand(it, Bundle.EMPTY) }
     }
 
     private lateinit var player: ExoPlayer
@@ -98,17 +108,21 @@ class PlaybackService : MediaLibraryService() {
     private fun buttons(): List<CommandButton> {
         val speed = player.playbackParameters.speed
         return listOf(
-            CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30).setPlayerCommand(Player.COMMAND_SEEK_BACK)
+            CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30).setSessionCommand(SessionCommand(BACK, Bundle.EMPTY))
                 .setDisplayName(getString(R.string.back_30)).setSlots(CommandButton.SLOT_BACK).build(),
-            CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30).setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
+            CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30).setSessionCommand(SessionCommand(FORWARD, Bundle.EMPTY))
                 .setDisplayName(getString(R.string.forward_30)).setSlots(CommandButton.SLOT_FORWARD).build(),
-            CommandButton.Builder(CommandButton.ICON_PLAYBACK_SPEED).setSessionCommand(SessionCommand(SPEED, Bundle.EMPTY))
+            // the speed itself as its icon, in our own font
+            CommandButton.Builder(CommandButton.ICON_UNDEFINED).setCustomIconResId(speedOf(speed).second)
+                .setSessionCommand(SessionCommand(SPEED, Bundle.EMPTY))
                 .setDisplayName(getString(R.string.speed, speed)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
-            CommandButton.Builder(CommandButton.ICON_NEXT).setPlayerCommand(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+            CommandButton.Builder(CommandButton.ICON_NEXT).setSessionCommand(SessionCommand(NEXT, Bundle.EMPTY))
                 .setDisplayName(getString(R.string.next_lesson)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
             subscribeButton(),
         )
     }
+
+    private fun speedOf(speed: Float) = SPEEDS.minBy { kotlin.math.abs(it.first - speed) }
 
     private fun subscribeButton() = CommandButton.Builder(CommandButton.ICON_PLAYLIST_ADD)
         .setSessionCommand(SessionCommand(SUBSCRIBE, Bundle.EMPTY))
@@ -117,8 +131,7 @@ class PlaybackService : MediaLibraryService() {
     /** the player's next speed (of SPEEDS), kept for next time */
     private fun nextSpeed() {
         val speed = player.playbackParameters.speed
-        val index = SPEEDS.indexOfFirst { kotlin.math.abs(it - speed) < 0.01f }
-        val next = SPEEDS[(index + 1) % SPEEDS.size]
+        val next = SPEEDS[(SPEEDS.indexOf(speedOf(speed)) + 1) % SPEEDS.size].first
         player.playbackParameters = PlaybackParameters(next)
         settings.edit().putFloat(SPEED, next).apply()
         session.setMediaButtonPreferences(buttons())
@@ -190,10 +203,10 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private inner class Callback : MediaLibrarySession.Callback {
-        /** the speed and the podcast app, besides what a library offers */
+        /** the player's buttons and the podcast app, besides what a library offers */
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
             val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
-                .add(SessionCommand(SPEED, Bundle.EMPTY)).add(SessionCommand(SUBSCRIBE, Bundle.EMPTY)).build()
+                .apply { COMMANDS.forEach(::add) }.build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(commands)
                 .setMediaButtonPreferences(buttons()).build()
         }
@@ -201,6 +214,9 @@ class PlaybackService : MediaLibraryService() {
         override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo,
                                      command: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
             when (command.customAction) {
+                BACK -> player.seekBack()
+                FORWARD -> player.seekForward()
+                NEXT -> player.seekToNextMediaItem()
                 SPEED -> nextSpeed()
                 SUBSCRIBE -> {
                     // a series or lesson in a list, or the lesson playing

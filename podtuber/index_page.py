@@ -46,7 +46,19 @@ TEXTS = {
             '<ul><li>כאן: <b>האזנה</b>, ליד כל שיעור.</li>'
             '<li>באפליקציה, עם שיעורים חדשים מעצמם: <b>הוספה לאפליקציה</b> (אין לכם? מומלצת '
             '<a href="{pocketcasts}">Pocket Casts</a>). לא נפתחה? <b>העתקת הכתובת</b>, ובאפליקציה: הוספה לפי כתובת.</li>'
-            '<li>ברכב (Android Auto): <a href="{apk}">האפליקציה שלנו לאנדרואיד</a> (ניסיונית).</li></ul>'),
+            '<li>ברכב (Android Auto): האפליקציה שלנו לאנדרואיד (ניסיונית). '
+            '<button type="button" class="btn" id="car-open">הורדה והוראות</button></li></ul>'
+            # how to install the app, and let Android Auto show it (it isn't from Google Play); in the app (where
+            # this page is its screen), without the download
+            '<dialog id="car"><h2>שיעורים ברכב (Android Auto)</h2><ol>'
+            '<li class="download"><a class="btn primary" href="{apk}" download>הורדת האפליקציה</a><br>'
+            'פותחים את הקובץ שירד ומתקינים. אם הטלפון שואל, מאשרים התקנה ממקור זה.</li>'
+            '<li>פותחים את ההגדרות של Android Auto (בהגדרות הטלפון, חיפוש: Android Auto), גוללים לסוף, '
+            'ולוחצים 10 פעמים על <b>גרסה</b>, עד שמופיעה הודעה על מצב מפתחים.</li>'
+            '<li>באותו מסך: בתפריט <b>⋮</b> למעלה, <b>הגדרות מפתחים</b>, ומסמנים <b>מקורות לא ידועים</b>.</li>'
+            '<li>ברכב, האפליקציה <b>שיעורים לדרך</b> מופיעה עם שאר האפליקציות. לא מופיעה? בהגדרות Android Auto, '
+            '<b>התאמה אישית של מרכז האפליקציות</b>, ומסמנים אותה.</li></ol>'
+            '<form method="dialog"><button class="btn">סגירה</button></form></dialog>'),
         'ravs_title': 'הרבנים',
         'series_count': '{count} סדרות',
         'new_title': 'שיעורים חדשים',
@@ -75,6 +87,7 @@ TEXTS = {
                    'הצעות ודיווח על בעיות: <a href="{issues}">כאן</a>.'),
         'script': {
             'close': 'סגירה',
+            'car_instructions': 'איך מפעילים',
             'hide_lessons': 'סגירת השיעורים',
             'back': 'חזרה',
             'listen': 'האזנה',
@@ -137,6 +150,13 @@ PAGE = """<!DOCTYPE html>
   details.howto { border: 1px solid var(--line); border-radius: .5rem; padding: .25rem .9rem; margin: .75rem 0; }
   details.howto summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
   details.howto ol, details.howto ul { padding-inline-start: 1.2rem; margin: .25rem 0 .75rem; }
+  #car-open { min-height: 36px; padding-block: .2rem; margin-inline-start: .25rem; }
+  dialog#car { max-width: min(32rem, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: .75rem;
+               background: var(--bg); color: var(--fg); padding: 1rem 1.25rem; }
+  dialog#car::backdrop { background: rgb(0 0 0 / .45); }
+  dialog#car h2 { margin-top: 0; }
+  dialog#car li { margin-bottom: .6rem; }
+  dialog#car .download .btn { margin-bottom: .35rem; }
   .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bg);
          max-width: 46rem; margin: 0 auto; padding: .6rem 16px; border-bottom: 1px solid var(--line); }
   input[type=search] { width: 100%; padding: .7rem .8rem; font: inherit; color: inherit; background: var(--bg);
@@ -308,6 +328,13 @@ const store = {  // per-viewer conveniences only; the page works without them
 const howto = $('howto');
 howto.open = store.get('howto') !== 'closed';
 howto.ontoggle = () => store.set('howto', howto.open ? 'open' : 'closed');
+const car = $('car');
+$('car-open').onclick = () => car.showModal();
+car.onclick = event => {  // a tap outside it
+  const box = car.getBoundingClientRect();
+  if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)
+    car.close();
+};
 
 // searching: gershayim, quotes and niqqud don't count ('עין איה' finds 'עין אי"ה'), nor do common spellings:
 // 'אלוקים', 'אלקים' and 'אלהים' are one word, as are 'ודאות' and 'וודאות'. Every word must appear, even within a
@@ -385,7 +412,7 @@ function listenLink(url, lesson) {  // lesson: "<series id>/<its number>", which
   return link;
 }
 // in the Android app (android/), whose screen is this page: a lesson is played by its player (as in the car, where
-// it can be continued), and there's no need to offer the app
+// it can be continued)
 if (window.ShiurimApp) {
   document.addEventListener('click', event => {
     const link = event.target.closest('a[data-lesson]');
@@ -393,7 +420,9 @@ if (window.ShiurimApp) {
     event.preventDefault();
     window.ShiurimApp.play(link.dataset.lesson);
   }, true);
-  document.querySelector('a[href="%APK%"]')?.closest('li')?.remove();
+  // the app is here already: only how to have it in the car
+  car.querySelector('.download').remove();
+  $('car-open').textContent = TEXTS.car_instructions;
 }
 function row(meta, links) {  // a lesson's date and length, and its buttons beside them
   const line = element('div', null, 'row');
@@ -713,7 +742,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         'FOOTER': texts['footer'].format(sources=', '.join(sources), issues=ISSUES_URL),
         'TEXTS': json.dumps({**texts['script'], 'groups': texts['groups'], 'scope': texts['scope']}, ensure_ascii=False),
         'LESSONS_URL': json.dumps(lessons_file),
-        'SCRIPT': SCRIPT.replace('%APK%', APK),
+        'SCRIPT': SCRIPT,
     }
     page = PAGE
     for key, value in replacements.items():
