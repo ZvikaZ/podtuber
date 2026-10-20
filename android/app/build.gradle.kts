@@ -17,6 +17,16 @@ android {
         buildConfigField("String", "SITE_URL", "\"https://zvikaz.github.io/podtuber/\"")
     }
 
+    signingConfigs {
+        // one debug key for every build (here, and the site's workflow), so each APK installs over the one before;
+        // Android's standard debug key, not a secret (a Play release is signed with its own)
+        getByName("debug") {
+            storeFile = rootProject.file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
