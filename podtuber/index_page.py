@@ -20,6 +20,7 @@ EPISODES_DIR = 'lessons'  # a file per podcast, of its episodes, for listing the
 CATALOG_FILENAME = 'catalog.json'  # the app's (android/), see write_catalog
 CATALOG_VERSION = 1  # raised when the catalog changes in a way an installed app can't read
 NEWEST_IN_CATALOG = 50
+APK = 'shiurim.apk'  # the app (android/), as built, published from static_dir
 PLAY_STORE = 'https://play.google.com/store/apps/details?id='
 POCKET_CASTS = PLAY_STORE + 'au.com.shiftyjelly.pocketcasts'
 ISSUES_URL = 'https://github.com/ZvikaZ/podtuber/issues'
@@ -44,7 +45,8 @@ TEXTS = {
         'howto_body': (
             '<ul><li>כאן: <b>האזנה</b>, ליד כל שיעור.</li>'
             '<li>באפליקציה, עם שיעורים חדשים מעצמם: <b>הוספה לאפליקציה</b> (אין לכם? מומלצת '
-            '<a href="{pocketcasts}">Pocket Casts</a>). לא נפתחה? <b>העתקת הכתובת</b>, ובאפליקציה: הוספה לפי כתובת.</li></ul>'),
+            '<a href="{pocketcasts}">Pocket Casts</a>). לא נפתחה? <b>העתקת הכתובת</b>, ובאפליקציה: הוספה לפי כתובת.</li>'
+            '<li>ברכב (Android Auto): <a href="{apk}">האפליקציה שלנו לאנדרואיד</a> (ניסיונית).</li></ul>'),
         'ravs_title': 'הרבנים',
         'series_count': '{count} סדרות',
         'new_title': 'שיעורים חדשים',
@@ -665,7 +667,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         'SKIP': texts['skip'],
         'SUMMARY': texts['summary'].format(count=len(items), ravs=len(ravs), updated=texts['date'](now.date())),
         'STALE': stale_note(stale, texts),
-        'HOWTO': texts['howto'], 'HOWTO_BODY': texts['howto_body'].format(pocketcasts=POCKET_CASTS),
+        'HOWTO': texts['howto'], 'HOWTO_BODY': texts['howto_body'].format(pocketcasts=POCKET_CASTS, apk=APK),
         'FILTER': texts['filter'], 'FILTER_LABEL': texts['filter_label'], 'WHOLE_WORDS': texts['whole_words'],
         'RAVS_TITLE': texts['ravs_title'], 'RAV_CARDS': rav_cards(ravs, texts),
         'NEW_TITLE': texts['new_title'], 'NEW': new_lessons(newest, texts),
