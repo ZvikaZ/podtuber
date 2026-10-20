@@ -75,6 +75,7 @@ TEXTS = {
                    'הצעות ודיווח על בעיות: <a href="{issues}">כאן</a>.'),
         'script': {
             'close': 'סגירה',
+            'hide_lessons': 'סגירת השיעורים',
             'back': 'חזרה',
             'listen': 'האזנה',
             'share': 'שיתוף',
@@ -165,7 +166,6 @@ PAGE = """<!DOCTYPE html>
   .go:hover:not(:has(.episodes:not([hidden]))), .ravs button:hover {
     background: color-mix(in srgb, var(--accent) 7%, transparent); }
   .ravs button:hover { border-color: var(--accent); }
-  #series > .go { cursor: auto; }  /* the series alone is open already (and its lessons, so it isn't tinted) */
   .btn:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .btn.primary:hover { background: var(--accent); filter: brightness(1.12); }
   .name { font-weight: 600; }
@@ -181,7 +181,11 @@ PAGE = """<!DOCTYPE html>
   .btn.quiet { border-color: transparent; padding-inline: .5rem; }  /* secondary: copying and sharing */
   .secondary { display: flex; margin-inline-start: auto; }  /* together, at the row's end, or wrapped below */
   .episodes { grid-column: 1 / -1; margin-top: .5rem; }
-  .episodes-bar { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; justify-content: space-between; }
+  .episodes-bar { display: flex; gap: .5rem; align-items: center; position: sticky; z-index: 1;
+                  top: calc(env(safe-area-inset-top, 0px) + var(--bar, 0px)); background: var(--bg);
+                  padding-block: .4rem; border-bottom: 1px solid var(--line); }
+  .episodes-bar .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  li.chosen .episodes-bar { background: color-mix(in srgb, var(--accent) 8%, var(--bg)); }
   .episodes ol { list-style: none; margin: .25rem 0 0; padding: 0; }
   .episodes ol > li, #lessons li, #new li { padding: .6rem 0; border-top: 1px solid var(--line); }
   .num { color: var(--muted); font-variant-numeric: tabular-nums; margin-inline-end: .35rem; }
@@ -420,23 +424,39 @@ async function toggleEpisodes(li, open) {
       item.append(row(meta, links));
       return item;
     }));
+    // the series' name, closing and the lessons' order, kept in view (under the search bar) through the lessons
     const bar = element('div', null, 'episodes-bar');
-    const order = element('button', TEXTS.from_last, 'btn');
+    const name = element('span', li.dataset.name, 'name');
+    name.dir = 'auto';
+    const order = element('button', TEXTS.from_last, 'btn quiet');
     order.type = 'button';
     order.onclick = () => {
       list.append(...[...list.children].reverse());
       order.textContent = order.textContent === TEXTS.from_last ? TEXTS.from_first : TEXTS.from_last;
     };
-    const close = element('button', TEXTS.close, 'btn');
+    const close = element('button', `${TEXTS.close} ✕`, 'btn');
     close.type = 'button';
-    close.onclick = () => { toggleEpisodes(li, false); li.scrollIntoView({block: 'nearest'}); };
-    bar.append(order);
-    if (episodes.length > 1) box.append(bar);
-    box.append(list, close);
+    close.onclick = () => closeEpisodes(li);
+    bar.append(name);
+    if (episodes.length > 1) bar.append(order);
+    bar.append(close);
+    box.append(bar, list);
   }
   box.hidden = !open;
   button.setAttribute('aria-expanded', open);
+  button.dataset.label = button.dataset.label || button.textContent;
+  button.textContent = open ? TEXTS.hide_lessons : button.dataset.label;
 }
+// closed, with the series back in view if its lessons were scrolled through
+function closeEpisodes(li) {
+  toggleEpisodes(li, false);
+  if (li.getBoundingClientRect().top < 0) li.scrollIntoView({block: 'start'});
+}
+// the sticky lessons' bar sits under the sticky search bar, whatever its height
+const searchBar = document.querySelector('.bar');
+const barHeight = () => document.documentElement.style.setProperty('--bar', `${searchBar.offsetHeight}px`);
+barHeight();
+window.addEventListener('resize', barHeight);
 for (const button of document.querySelectorAll('button[data-episodes]'))
   button.onclick = () => toggleEpisodes(button.closest('li'));
 
@@ -586,8 +606,10 @@ async function show() {
 // text is being selected)
 document.addEventListener('click', event => {
   const row = event.target.closest('.go');
-  if (!row || row.parentElement.id === 'series' || event.target.closest('a, button, .episodes')
-      || getSelection().toString()) return;
+  if (!row || event.target.closest('a, button, .episodes') || getSelection().toString()) return;
+  const lessons = row.querySelector(':scope > .episodes');
+  if (lessons && !lessons.hidden) return closeEpisodes(row);  // open: tapped again, it closes
+  if (row.parentElement.id === 'series') return toggleEpisodes(row, true);  // the series alone, its lessons closed
   history.pushState(null, '', location.pathname + location.search + '#' + row.dataset.go);
   show();
 });
