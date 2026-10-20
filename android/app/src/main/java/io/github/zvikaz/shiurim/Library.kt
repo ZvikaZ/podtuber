@@ -32,9 +32,9 @@ data class Queue(val lessons: List<Node>, val start: Int, val position: Long)
 /**
  * The browse tree, as Android Auto and the phone show it:
  *   root: the rabbis, the newest lessons, continue (the series heard lately, each at its next lesson)
- *   a rav: his series, in groups (courses, holidays, general lessons) when he has more than one
+ *   a rav: his series, ordered by courses, holidays, and general lessons
  *   a series: its lessons, numbered, with how much of each was heard
- * Ids: "continue", "newest", "ravs", "rav/<name>", "group/<group>/<rav>", "series/<id>", "lesson/<series id>/<number>"
+ * Ids: "continue", "newest", "ravs", "rav/<name>", "series/<id>", "lesson/<series id>/<number>"
  */
 class Library(private val source: Source, private val listening: Listening, private val labels: Labels) {
     companion object {
@@ -70,19 +70,7 @@ class Library(private val source: Source, private val listening: Listening, priv
         id == RAVS -> source.catalog().ravs.map {
             Node("rav/${it.name}", it.name, labels.seriesCount(it.seriesCount), browsable = true, art = it.image)
         }
-        id.startsWith("rav/") -> {
-            val rav = id.removePrefix("rav/")
-            val series = source.catalog().seriesOf(rav)
-            val groups = GROUP_ORDER.filter { group -> series.any { it.group == group } }
-            if (groups.size > 1) groups.map { group ->
-                Node("group/$group/$rav", source.catalog().groups[group] ?: group,
-                    labels.seriesCount(series.count { it.group == group }), browsable = true)
-            } else sorted(series).map(::seriesNode)
-        }
-        id.startsWith("group/") -> {
-            val (group, rav) = id.removePrefix("group/").let { it.substringBefore('/') to it.substringAfter('/') }
-            sorted(source.catalog().seriesOf(rav).filter { it.group == group }).map(::seriesNode)
-        }
+        id.startsWith("rav/") -> sorted(source.catalog().seriesOf(id.removePrefix("rav/"))).map(::seriesNode)
         id.startsWith("series/") -> lessonNodes(id.removePrefix("series/"))
         else -> emptyList()
     }

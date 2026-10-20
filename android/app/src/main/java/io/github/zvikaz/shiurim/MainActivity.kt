@@ -53,7 +53,15 @@ class MainActivity : Activity() {
                 }
             }
         }
-        controls = PlayerControlView(this).apply { showTimeoutMs = 0; visibility = View.GONE }
+        controls = PlayerControlView(this).apply {
+            showTimeoutMs = 0
+            // A spoken lesson is navigated within with 30-second skips. Keep changing lessons in the overflow menu.
+            setShowPreviousButton(false)
+            setShowNextButton(false)
+            setShowRewindButton(true)
+            setShowFastForwardButton(true)
+            visibility = View.GONE
+        }
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(web, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))

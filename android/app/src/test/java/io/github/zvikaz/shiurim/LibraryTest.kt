@@ -50,12 +50,10 @@ class LibraryTest {
     }
 
     @Test
-    fun `a rav with series of several groups is shown by group, holidays in the order of the year`() {
+    fun `a rav opens directly to all his series, ordered by kind and holidays by the year`() {
         val library = library()
-        assertEquals(listOf("group/course/הרב אוהד תירוש", "group/holiday/הרב אוהד תירוש"),
+        assertEquals(listOf("series/a", "series/c", "series/b"),
             library.children("rav/הרב אוהד תירוש").map { it.id })
-        assertEquals(listOf("series/c", "series/b"), library.children("group/holiday/הרב אוהד תירוש").map { it.id })
-        // one group: his series right away
         assertEquals(listOf("series/d"), library.children("rav/הרב יוסף קלנר").map { it.id })
     }
 

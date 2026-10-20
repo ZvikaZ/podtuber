@@ -49,10 +49,7 @@ class PlaybackService : MediaLibraryService() {
         const val SPEED = "speed"  // the player's speed, to the next one of SPEEDS
         const val SUBSCRIBE = "subscribe"  // a series (or the playing lesson's), to a podcast app
         const val CHANNEL = "subscribe"
-        // the speeds Media3 has icons for, from normal up, then the slower one
-        val SPEEDS = listOf(1.0f to CommandButton.ICON_PLAYBACK_SPEED_1_0, 1.2f to CommandButton.ICON_PLAYBACK_SPEED_1_2,
-            1.5f to CommandButton.ICON_PLAYBACK_SPEED_1_5, 1.8f to CommandButton.ICON_PLAYBACK_SPEED_1_8,
-            2.0f to CommandButton.ICON_PLAYBACK_SPEED_2_0, 0.8f to CommandButton.ICON_PLAYBACK_SPEED_0_8)
+        val SPEEDS = listOf(1.0f, 1.2f, 1.5f, 1.8f, 2.0f, 0.8f)
     }
 
     private lateinit var player: ExoPlayer
@@ -100,13 +97,12 @@ class PlaybackService : MediaLibraryService() {
      */
     private fun buttons(): List<CommandButton> {
         val speed = player.playbackParameters.speed
-        val icon = SPEEDS.minByOrNull { kotlin.math.abs(it.first - speed) }!!.second
         return listOf(
             CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30).setPlayerCommand(Player.COMMAND_SEEK_BACK)
                 .setDisplayName(getString(R.string.back_30)).setSlots(CommandButton.SLOT_BACK).build(),
             CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30).setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
                 .setDisplayName(getString(R.string.forward_30)).setSlots(CommandButton.SLOT_FORWARD).build(),
-            CommandButton.Builder(icon).setSessionCommand(SessionCommand(SPEED, Bundle.EMPTY))
+            CommandButton.Builder(CommandButton.ICON_PLAYBACK_SPEED).setSessionCommand(SessionCommand(SPEED, Bundle.EMPTY))
                 .setDisplayName(getString(R.string.speed, speed)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
             CommandButton.Builder(CommandButton.ICON_NEXT).setPlayerCommand(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
                 .setDisplayName(getString(R.string.next_lesson)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
@@ -121,8 +117,8 @@ class PlaybackService : MediaLibraryService() {
     /** the player's next speed (of SPEEDS), kept for next time */
     private fun nextSpeed() {
         val speed = player.playbackParameters.speed
-        val index = SPEEDS.indexOfFirst { kotlin.math.abs(it.first - speed) < 0.01f }
-        val next = SPEEDS[(index + 1) % SPEEDS.size].first
+        val index = SPEEDS.indexOfFirst { kotlin.math.abs(it - speed) < 0.01f }
+        val next = SPEEDS[(index + 1) % SPEEDS.size]
         player.playbackParameters = PlaybackParameters(next)
         settings.edit().putFloat(SPEED, next).apply()
         session.setMediaButtonPreferences(buttons())
