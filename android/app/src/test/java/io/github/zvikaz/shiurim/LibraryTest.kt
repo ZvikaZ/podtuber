@@ -8,12 +8,12 @@ class LibraryTest {
     private val catalog = Catalog.parse("""
         {"version":1,"updated":"2026-10-20T00:00:00+00:00",
          "groups":{"course":"סדרות","holiday":"חגים ומועדים","general":"שיעורים כלליים"},
-         "ravs":[{"name":"הרב אוהד תירוש","series":3,"image":"ohad-tirosh.jpg"},{"name":"הרב יוסף קלנר","series":1,"image":null}],
+         "ravs":[{"name":"הרב אוהד תירוש","series":3,"image":"ohad-tirosh.jpg"},{"name":"הרב יוסף קלנר","series":1,"image":"art/rav-1.png"}],
          "series":[
           {"id":"a","name":"יחסי הורים וילדים · תשע\"ג","rav":"הרב אוהד תירוש","group":"course","order":0,"lessons":3,"updated":"2013-02-01","years":"תשע\"ג","course":true,"art":"art/a.jpg"},
           {"id":"b","name":"פורים","rav":"הרב אוהד תירוש","group":"holiday","order":8,"lessons":2,"updated":"2024-03-01","years":"","course":false,"art":"art/b.jpg"},
           {"id":"c","name":"ראש השנה","rav":"הרב אוהד תירוש","group":"holiday","order":1,"lessons":1,"updated":"2023-09-01","years":"","course":false,"art":"art/c.jpg"},
-          {"id":"d","name":"אגרות הראי\"ה","rav":"הרב יוסף קלנר","group":"course","order":0,"lessons":2,"updated":"2026-10-01","years":"","course":true,"art":"art/d.jpg"}],
+          {"id":"d","name":"אגרות הראי\"ה","rav":"הרב יוסף קלנר","group":"course","order":0,"lessons":2,"updated":"2026-10-01","years":"","course":true,"art":"https://elsewhere/d.jpg","feed":"https://zvikaz.github.io/podtuber/d.rss"}],
          "newest":[{"series":"d","position":2,"title":"אגרת ב","date":"2026-10-01","minutes":40,"url":"https://x/d2.mp3"},
                    {"series":"b","position":2,"title":"פורים ב","date":"2024-03-01","minutes":null,"url":"https://x/b2.mp3"}]}
     """.trimIndent())
@@ -31,9 +31,15 @@ class LibraryTest {
         override fun recent() = recent
     }
 
+    private val searchIndex = listOf(
+        SearchEntry("a", 2, "שיעור 2", "על כיבוד אב ואם", "ח׳ חשון", 50, "https://x/a2.mp3"),
+        SearchEntry("d", 1, "אגרת 1", "מתוך אגרות הראיה", "ח׳ חשון", 40, "https://x/d1.mp3"),
+    )
+
     private fun library(listening: Listening = FakeListening()) = Library(object : Source {
         override fun catalog() = catalog
         override fun lessons(seriesId: String) = lessons.getValue(seriesId)
+        override fun searchIndex() = searchIndex
     }, listening, Labels("המשך", "חדשים", "רבנים", { "$it סדרות" }, { "$it שיעורים" }, { "$it דק'" }))
 
     @Test
@@ -85,8 +91,32 @@ class LibraryTest {
     @Test
     fun `search finds series by name and rav, despite quotes`() {
         val library = library()
-        assertEquals(listOf("series/d"), library.search("אגרות הראיה").map { it.id })
-        assertEquals(listOf("series/b"), library.search("פורים תירוש").map { it.id })
+        assertEquals(listOf("series/d"), library.search("אגרות הראיה").filter { it.browsable }.map { it.id })
+        assertEquals(listOf("series/b"), library.search("פורים תירוש").filter { it.browsable }.map { it.id })
+    }
+
+    @Test
+    fun `search finds lessons too, by their title or description, after the series`() {
+        val library = library()
+        assertEquals(listOf("lesson/a/2"), library.search("כיבוד אב").map { it.id })
+        assertEquals("יחסי הורים וילדים · תשע\"ג · הרב אוהד תירוש", library.search("כיבוד אב").single().subtitle)
+        assertEquals(listOf("series/d", "lesson/d/1"), library.search("אגרות").map { it.id })
+    }
+
+    @Test
+    fun `a series whose artwork is elsewhere has its rav's, and every rav has an image`() {
+        val library = library()
+        assertEquals("art/rav-1.png", library.children("rav/הרב יוסף קלנר").single().art)
+        assertEquals("art/a.jpg", library.children("series/a").first().art)
+    }
+
+    @Test
+    fun `series and lessons can be added to a podcast app, by their series`() {
+        val library = library()
+        assertEquals("https://zvikaz.github.io/podtuber/d.rss", library.seriesOf("lesson/d/2")!!.feed)
+        assertEquals("d", library.seriesOf("series/d")!!.id)
+        assertEquals("d", library.children("series/d").first().series)
+        assertNull(library.seriesOf("ravs"))
     }
 
     @Test

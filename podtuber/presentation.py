@@ -31,6 +31,8 @@ EPISODIC = re.compile(r'^(כללי|שיעורים נוספים|ימי עיון|�
 def year_of(text):
     """the first Hebrew year written in the text, as 'תשע"ג' (None if there's none)"""
     for match in YEAR.finditer(text):
+        if match.group(0) == 'תשעה' and text[match.end():].lstrip().startswith('באב'):
+            continue  # the fast of Av, not the year תשע"ה
         letters = re.sub('[^א-ת]', '', next(group for group in match.groups() if group))
         if 700 <= gematria(letters) < 800:  # 5700-5799
             return match, number_name(gematria(letters))
@@ -123,7 +125,9 @@ def _shade(color, factor):
 @cache
 def _font(name, size):
     from PIL import ImageFont
-    font = ImageFont.truetype(str(FONTS / name), size)
+    # the basic layout, everywhere: the text is given in visual order (_visual), which Pillow with libraqm (as on
+    # GitHub's runners) would reverse again
+    font = ImageFont.truetype(str(FONTS / name), size, layout_engine=ImageFont.Layout.BASIC)
     try:
         font.set_variation_by_name('Bold')
     except Exception:
@@ -186,6 +190,16 @@ def make_artwork(path, name, rav, source, portrait=None):
     draw.text((size / 2, size - 72), _visual(SOURCE_LABELS.get(source, source)), font=_font('Heebo.ttf', 40), fill='#d0d0d0', anchor='mt')
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path, quality=82, optimize=True)
+
+
+def make_avatar(path, rav, size=256):
+    """a rav without a portrait, as the index page shows him: his surname's first letter, on his color"""
+    from PIL import Image, ImageDraw
+    image = Image.new('RGB', (size, size), rav_color(rav))
+    ImageDraw.Draw(image).text((size / 2, size / 2), rav.split()[-1][0], font=_font('Heebo.ttf', size // 2),
+                               fill='#ffffff', anchor='mm')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path, optimize=True)
 
 
 def make_site_images(directory, title, tagline, podcasts, ravs):

@@ -7,5 +7,11 @@
     <string name="series_count">%d סדרות</string>
     <string name="lessons_count">%d שיעורים</string>
     <string name="minutes">%d דק\'</string>
+    <string name="back_30">30 שניות אחורה</string>
+    <string name="forward_30">30 שניות קדימה</string>
+    <string name="speed">מהירות %.1f×</string>
+    <string name="next_lesson">השיעור הבא</string>
+    <string name="subscribe">הוספה לאפליקציית הפודקאסטים</string>
+    <string name="subscribe_channel">הוספה לאפליקציית פודקאסטים</string>
     <string name="no_app">אין בטלפון אפליקציה שיכולה לפתוח את זה. אפשר להתקין אפליקציית פודקאסטים, כמו Pocket Casts.</string>
 </resources>

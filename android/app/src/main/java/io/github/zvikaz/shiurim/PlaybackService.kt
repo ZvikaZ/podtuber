@@ -1,5 +1,8 @@
 package io.github.zvikaz.shiurim
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
@@ -10,16 +13,21 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaConstants
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSession.MediaItemsWithStartPosition
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionError
+import androidx.media3.session.SessionResult
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +35,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.guava.future
+import kotlinx.coroutines.launch
 
 /**
  * The player, and the library Android Auto (and the app's own screen) browses: see [Library]. Playing a lesson plays
@@ -36,6 +45,14 @@ class PlaybackService : MediaLibraryService() {
     private companion object {
         const val SAVE_EVERY = 10_000L
         const val RECENT_ROOT = "recent"  // the root the system asks for to offer resuming, after a restart
+        const val SEEK = 30_000L  // back and forward, in the car's player and the notification
+        const val SPEED = "speed"  // the player's speed, to the next one of SPEEDS
+        const val SUBSCRIBE = "subscribe"  // a series (or the playing lesson's), to a podcast app
+        const val CHANNEL = "subscribe"
+        // the speeds Media3 has icons for, from normal up, then the slower one
+        val SPEEDS = listOf(1.0f to CommandButton.ICON_PLAYBACK_SPEED_1_0, 1.2f to CommandButton.ICON_PLAYBACK_SPEED_1_2,
+            1.5f to CommandButton.ICON_PLAYBACK_SPEED_1_5, 1.8f to CommandButton.ICON_PLAYBACK_SPEED_1_8,
+            2.0f to CommandButton.ICON_PLAYBACK_SPEED_2_0, 0.8f to CommandButton.ICON_PLAYBACK_SPEED_0_8)
     }
 
     private lateinit var player: ExoPlayer
@@ -63,13 +80,70 @@ class PlaybackService : MediaLibraryService() {
                 .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), /* handleAudioFocus= */ true)
             .setHandleAudioBecomingNoisy(true)
             .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(this, http)))
-            .setSeekBackIncrementMs(15_000).setSeekForwardIncrementMs(30_000)
+            .setSeekBackIncrementMs(SEEK).setSeekForwardIncrementMs(SEEK)
             .build()
+        player.playbackParameters = PlaybackParameters(settings.getFloat(SPEED, 1.0f))
         player.addListener(Saver())
         session = MediaLibrarySession.Builder(this, player, Callback())
             .setSessionActivity(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+            .setMediaButtonPreferences(buttons())
+            .setCommandButtonsForMediaItems(listOf(subscribeButton()))
             .build()
+    }
+
+    private val settings by lazy { getSharedPreferences("settings", MODE_PRIVATE) }
+
+    /**
+     * the player's buttons: back and forward 30 seconds (rather than to the lesson's start and the next one), and
+     * in the overflow its speed, the next lesson, and adding the series to a podcast app
+     */
+    private fun buttons(): List<CommandButton> {
+        val speed = player.playbackParameters.speed
+        val icon = SPEEDS.minByOrNull { kotlin.math.abs(it.first - speed) }!!.second
+        return listOf(
+            CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30).setPlayerCommand(Player.COMMAND_SEEK_BACK)
+                .setDisplayName(getString(R.string.back_30)).setSlots(CommandButton.SLOT_BACK).build(),
+            CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30).setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
+                .setDisplayName(getString(R.string.forward_30)).setSlots(CommandButton.SLOT_FORWARD).build(),
+            CommandButton.Builder(icon).setSessionCommand(SessionCommand(SPEED, Bundle.EMPTY))
+                .setDisplayName(getString(R.string.speed, speed)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
+            CommandButton.Builder(CommandButton.ICON_NEXT).setPlayerCommand(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                .setDisplayName(getString(R.string.next_lesson)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
+            subscribeButton(),
+        )
+    }
+
+    private fun subscribeButton() = CommandButton.Builder(CommandButton.ICON_PLAYLIST_ADD)
+        .setSessionCommand(SessionCommand(SUBSCRIBE, Bundle.EMPTY))
+        .setDisplayName(getString(R.string.subscribe)).setSlots(CommandButton.SLOT_OVERFLOW).build()
+
+    /** the player's next speed (of SPEEDS), kept for next time */
+    private fun nextSpeed() {
+        val speed = player.playbackParameters.speed
+        val index = SPEEDS.indexOfFirst { kotlin.math.abs(it.first - speed) < 0.01f }
+        val next = SPEEDS[(index + 1) % SPEEDS.size].first
+        player.playbackParameters = PlaybackParameters(next)
+        settings.edit().putFloat(SPEED, next).apply()
+        session.setMediaButtonPreferences(buttons())
+    }
+
+    /**
+     * a series to a podcast app: not opened while driving, but left as a notification on the phone, which opens
+     * the podcast app (by its pcast: link, as the site's "add to app" does)
+     */
+    private fun subscribe(series: Series) {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.subscribe_channel),
+            NotificationManager.IMPORTANCE_DEFAULT))
+        val link = Uri.parse("pcast://" + series.feed.substringAfter("://"))
+        val open = PendingIntent.getActivity(this, series.id.hashCode(), Intent(Intent.ACTION_VIEW, link),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        manager.notify(series.id.hashCode(), Notification.Builder(this, CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(getString(R.string.subscribe))
+            .setContentText("${series.name} · ${series.rav}")
+            .setContentIntent(open).setAutoCancel(true).build())
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo) = session
@@ -120,6 +194,33 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private inner class Callback : MediaLibrarySession.Callback {
+        /** the speed and the podcast app, besides what a library offers */
+        override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
+                .add(SessionCommand(SPEED, Bundle.EMPTY)).add(SessionCommand(SUBSCRIBE, Bundle.EMPTY)).build()
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(commands)
+                .setMediaButtonPreferences(buttons()).build()
+        }
+
+        override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo,
+                                     command: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
+            when (command.customAction) {
+                SPEED -> nextSpeed()
+                SUBSCRIBE -> {
+                    // a series or lesson in a list, or the lesson playing
+                    val id = args.getString(MediaConstants.EXTRA_KEY_MEDIA_ID) ?: player.currentMediaItem?.mediaId
+                    return scope.future(Dispatchers.IO) {
+                        val series = id?.let { runCatching { library.seriesOf(it) }.getOrNull() }
+                            ?: return@future SessionResult(SessionError.ERROR_BAD_VALUE)
+                        launch(Dispatchers.Main) { subscribe(series) }
+                        SessionResult(SessionResult.RESULT_SUCCESS)
+                    }
+                }
+                else -> return immediate(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
+            }
+            return immediate(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
+
         override fun onGetLibraryRoot(session: MediaLibrarySession, browser: MediaSession.ControllerInfo,
                                       params: LibraryParams?): ListenableFuture<LibraryResult<MediaItem>> {
             val extras = Bundle().apply {
@@ -216,6 +317,7 @@ class PlaybackService : MediaLibraryService() {
             .setMediaType(if (node.browsable) MediaMetadata.MEDIA_TYPE_FOLDER_MIXED else MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE)
             .setArtworkUri(artwork(node.art))
             .setExtras(extras)
+            .setSupportedCommands(if (node.series != null) listOf(SUBSCRIBE) else emptyList())
             .build()
         return MediaItem.Builder().setMediaId(node.id).setMediaMetadata(metadata)
             .apply { node.url?.let { setUri(it) } }.build()

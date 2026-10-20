@@ -4,6 +4,7 @@ package io.github.zvikaz.shiurim
 interface Source {
     fun catalog(): Catalog
     fun lessons(seriesId: String): List<Lesson>
+    fun searchIndex(): List<SearchEntry>
 }
 
 interface Listening {
@@ -23,6 +24,7 @@ data class Node(
     val art: String? = null,  // an image of the site (a path in it), or one of the app's icons ("icon:<name>")
     val progress: Progress? = null, val grid: Boolean = false,  // grid: its children shown as a grid
     val url: String? = null,  // a lesson's audio
+    val series: String? = null,  // a series', or a lesson's: which can be added to a podcast app
 )
 
 data class Queue(val lessons: List<Node>, val start: Int, val position: Long)
@@ -41,7 +43,8 @@ class Library(private val source: Source, private val listening: Listening, priv
         const val NEWEST = "newest"
         const val RAVS = "ravs"
         private val GROUP_ORDER = listOf("course", "holiday", "general")
-        private const val SEARCH_LIMIT = 50
+        private const val SEARCH_LIMIT = 60
+        private const val SERIES_FOUND = 20
 
         fun lessonId(series: String, position: Int) = "lesson/$series/$position"
         /** a lesson id's "<series id>/<number>" (as Positions keeps it), series id and number */
@@ -61,7 +64,8 @@ class Library(private val source: Source, private val listening: Listening, priv
         id == NEWEST -> source.catalog().newest.mapNotNull { newest ->
             val series = source.catalog().series(newest.series) ?: return@mapNotNull null
             Node(lessonId(newest.series, newest.position), newest.title, "${series.name} · ${series.rav}",
-                art = series.art, progress = listening.progress("${newest.series}/${newest.position}"), url = newest.url)
+                art = art(series), progress = listening.progress("${newest.series}/${newest.position}"), url = newest.url,
+                series = series.id)
         }
         id == RAVS -> source.catalog().ravs.map {
             Node("rav/${it.name}", it.name, labels.seriesCount(it.seriesCount), browsable = true, art = it.image)
@@ -102,17 +106,34 @@ class Library(private val source: Source, private val listening: Listening, priv
         return Queue(lessons, start, if (progress != null && !progress.finished) progress.position else 0)
     }
 
-    /** the series and lessons a search finds: every word of it, in the series' name or rav, or the lesson's title */
+    /**
+     * What a search finds, as the site's does: the series with every word of it in their name or rav, then the
+     * lessons with every word in their title or description (of all lessons, from the site's search index; of the
+     * newest only, if it can't be had)
+     */
     fun search(query: String): List<Node> {
         val words = normalize(query).split(' ').filter { it.isNotEmpty() }
         if (words.isEmpty()) return emptyList()
         fun matches(text: String) = normalize(text).let { normalized -> words.all { it in normalized } }
         val catalog = source.catalog()
-        val series = catalog.series.filter { matches("${it.name} ${it.rav}") }
-        val lessons = catalog.newest.filter { matches(it.title) }.mapNotNull { newest ->
-            catalog.series(newest.series)?.let { Node(lessonId(it.id, newest.position), newest.title, it.name, art = it.art, url = newest.url) }
-        }
-        return (sorted(series).map(::seriesNode) + lessons).take(SEARCH_LIMIT)
+        val series = sorted(catalog.series.filter { matches("${it.name} ${it.rav}") }).take(SERIES_FOUND)
+        val index = runCatching { source.searchIndex() }.getOrNull()
+            ?: catalog.newest.map { SearchEntry(it.series, it.position, it.title, "", it.date, it.minutes, it.url) }
+        val lessons = index.asSequence().filter { matches("${it.title} ${it.description}") }
+            .mapNotNull { entry -> catalog.series(entry.series)?.let { foundLesson(entry, it) } }
+            .take(SEARCH_LIMIT - series.size).toList()
+        return series.map(::seriesNode) + lessons
+    }
+
+    private fun foundLesson(entry: SearchEntry, series: Series) = Node(
+        lessonId(series.id, entry.position), entry.title, "${series.name} · ${series.rav}", art = art(series),
+        progress = listening.progress("${series.id}/${entry.position}"), url = entry.url, series = series.id)
+
+    /** the series a node is, or is of (for adding it to a podcast app) */
+    fun seriesOf(id: String): Series? = when {
+        id.startsWith("series/") -> source.catalog().series(id.removePrefix("series/"))
+        id.startsWith("lesson/") -> source.catalog().series(lessonParts(id).first)
+        else -> null
     }
 
     /**
@@ -130,7 +151,8 @@ class Library(private val source: Source, private val listening: Listening, priv
         val series = catalog.series.maxByOrNull { score(it.name) * 2 + score(it.rav) }
             ?.takeIf { score(it.name) > 0 && score(it.name) * 2 + score(it.rav) >= words.size }
         if (series != null) return queue(nextIn(series))
-        val rav = catalog.ravs.maxByOrNull { score(it.name) }?.takeIf { score(it.name) > 0 } ?: return null
+        val rav = catalog.ravs.maxByOrNull { score(it.name) }?.takeIf { score(it.name) > 0 }
+            ?: return search(query).firstOrNull { !it.browsable }?.let { queue(it.id) }  // a lesson, by its title
         val newest = catalog.newest.firstOrNull { catalog.series(it.series)?.rav == rav.name }
             ?: catalog.seriesOf(rav.name).maxByOrNull { it.updated }?.let { Newest(it.id, it.lessons, "", "", null, "") }
         return newest?.let { queue(lessonId(it.series, it.position)) }
@@ -161,16 +183,20 @@ class Library(private val source: Source, private val listening: Listening, priv
         val series = source.catalog().series(seriesId) ?: return emptyList()
         return source.lessons(seriesId).map { lesson ->
             val details = listOfNotNull(lesson.date, lesson.minutes?.let(labels.minutes)).joinToString(" · ")
-            Node(lessonId(seriesId, lesson.position), "${lesson.position}. ${lesson.title}", details, art = series.art,
-                progress = listening.progress("$seriesId/${lesson.position}"), url = lesson.url)
+            Node(lessonId(seriesId, lesson.position), "${lesson.position}. ${lesson.title}", details, art = art(series),
+                progress = listening.progress("$seriesId/${lesson.position}"), url = lesson.url, series = seriesId)
         }
     }
 
     private fun seriesNode(series: Series) = Node(
         "series/${series.id}", series.name,
         listOf(labels.lessonsCount(series.lessons), series.years).filter { it.isNotEmpty() }.joinToString(" · "),
-        browsable = true, art = series.art,
+        browsable = true, art = art(series), series = series.id,
     )
+
+    /** a series' artwork: its own, if the site has it (a podcast published elsewhere has its own elsewhere), or its rav's */
+    private fun art(series: Series) = series.art.takeIf { it.isNotEmpty() && "://" !in it }
+        ?: source.catalog().rav(series.rav)?.image
 
     /** holidays in the order of the year; any other series by name */
     private fun sorted(series: List<Series>) = series.sortedWith(compareBy<Series>({ GROUP_ORDER.indexOf(it.group) },

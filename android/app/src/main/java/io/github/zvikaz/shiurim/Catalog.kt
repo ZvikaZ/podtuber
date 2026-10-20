@@ -1,5 +1,7 @@
 package io.github.zvikaz.shiurim
 
+import android.util.JsonReader
+import android.util.JsonToken
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -16,10 +18,17 @@ data class Rav(val name: String, val seriesCount: Int, val image: String?)
 data class Series(
     val id: String, val name: String, val rav: String, val group: String, val order: Int, val lessons: Int,
     val updated: String, val years: String, val course: Boolean, val art: String,
+    val feed: String,  // its podcast feed, for adding it to a podcast app
 )
 
 data class Newest(
     val series: String, val position: Int, val title: String, val date: String, val minutes: Int?, val url: String,
+)
+
+/** a lesson as the site's search index has it: its series, title, the start of its description, and so on */
+data class SearchEntry(
+    val series: String, val position: Int, val title: String, val description: String, val date: String,
+    val minutes: Int?, val url: String,
 )
 
 data class Lesson(
@@ -29,10 +38,12 @@ data class Lesson(
 
 class Catalog(
     val ravs: List<Rav>, val series: List<Series>, val newest: List<Newest>, val groups: Map<String, String>,
+    val search: String = "",  // the site's search index (its name changes with its contents)
 ) {
     private val byId = series.associateBy { it.id }
     fun series(id: String) = byId[id]
     fun seriesOf(rav: String) = series.filter { it.rav == rav }
+    fun rav(name: String) = ravs.find { it.name == name }
 
     companion object {
         const val VERSION = 1  // the catalog's version this app reads
@@ -48,13 +59,14 @@ class Catalog(
                 series = json.getJSONArray("series").objects().map {
                     Series(it.getString("id"), it.getString("name"), it.getString("rav"), it.getString("group"),
                         it.optInt("order"), it.getInt("lessons"), it.getString("updated"), it.optString("years"),
-                        it.optBoolean("course"), it.optString("art"))
+                        it.optBoolean("course"), it.optString("art"), it.optString("feed"))
                 },
                 newest = json.getJSONArray("newest").objects().map {
                     Newest(it.getString("series"), it.getInt("position"), it.getString("title"), it.getString("date"),
                         it.optIntOrNull("minutes"), it.getString("url"))
                 },
                 groups = groups,
+                search = json.optString("search"),
             )
         }
 
@@ -89,6 +101,7 @@ class CatalogRepository(private val directory: File, private val siteUrl: String
     private var catalog: Catalog? = null
     private val lessons = mutableMapOf<String, Pair<String?, List<Lesson>>>()  // by series: as of its update
     private var offlineUntil = 0L
+    private var searchIndex: Pair<String, List<SearchEntry>>? = null
 
     /** the catalog; throws if it was never fetched and the site can't be reached */
     @Synchronized
@@ -112,6 +125,63 @@ class CatalogRepository(private val directory: File, private val siteUrl: String
             if (updated != null) stamp.writeText(updated)
         }
         return Catalog.parseLessons(seriesId, text).also { lessons[seriesId] = (if (current) updated else stamp.takeIf { it.exists() }?.readText()) to it }
+    }
+
+    /**
+     * every lesson, from the site's search index: fetched once per version of it (its name changes with it), and
+     * kept; read as a stream, as it's big
+     */
+    @Synchronized
+    override fun searchIndex(): List<SearchEntry> {
+        val name = catalog().search.ifEmpty { return emptyList() }
+        searchIndex?.let { (kept, entries) -> if (kept == name) return entries }
+        val file = File(directory, "search/$name")
+        if (!file.exists()) {
+            fetchOrKept(file, name)
+            file.parentFile?.listFiles()?.filter { it.name != name }?.forEach { it.delete() }  // older versions
+        }
+        val entries = JsonReader(file.bufferedReader()).use { reader -> readSearchIndex(reader) }
+        searchIndex = name to entries
+        return entries
+    }
+
+    /** {"series": [[id, name, rav], ...], "lessons": [[series index, title, description, date, minutes, position, url], ...]} */
+    private fun readSearchIndex(reader: JsonReader): List<SearchEntry> {
+        val series = mutableListOf<String>()
+        val entries = mutableListOf<SearchEntry>()
+        reader.beginObject()
+        while (reader.hasNext()) when (reader.nextName()) {
+            "series" -> {
+                reader.beginArray()
+                while (reader.hasNext()) {
+                    reader.beginArray()
+                    series.add(reader.nextString())
+                    while (reader.hasNext()) reader.skipValue()
+                    reader.endArray()
+                }
+                reader.endArray()
+            }
+            "lessons" -> {
+                reader.beginArray()
+                while (reader.hasNext()) {
+                    reader.beginArray()
+                    val index = reader.nextInt()
+                    val title = reader.nextString()
+                    val description = reader.nextString()
+                    val date = reader.nextString()
+                    val minutes = if (reader.peek() == JsonToken.NULL) { reader.nextNull(); null } else reader.nextInt()
+                    val position = reader.nextInt()
+                    val url = reader.nextString()
+                    while (reader.hasNext()) reader.skipValue()
+                    reader.endArray()
+                    entries.add(SearchEntry(series[index], position, title, description, date, minutes, url))
+                }
+                reader.endArray()
+            }
+            else -> reader.skipValue()
+        }
+        reader.endObject()
+        return entries
     }
 
     /** the catalog from the site, now (on opening the app) */

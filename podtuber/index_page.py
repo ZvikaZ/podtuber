@@ -681,7 +681,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         series.append([feed_id, name, rav])
         catalog.append({'id': feed_id, 'name': name, 'rav': rav, 'group': group, 'order': order,
                         'lessons': len(episodes), 'updated': latest.isoformat(), 'years': getattr(podcast, 'years', ''),
-                        'course': bool(getattr(podcast, 'course', False)), 'source': source,
+                        'course': bool(getattr(podcast, 'course', False)), 'source': source, 'feed': podcast.feed_url,
                         'art': (podcast.image or '').removeprefix(base_url)})
         lessons += [search_entry(len(series) - 1, episode, position, texts)
                     for position, episode in enumerate(episodes, 1)]
@@ -695,7 +695,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
     (path.parent / lessons_file).write_text(index, encoding='utf8')
 
     ravs = rav_summary(podcasts, base_url)
-    write_catalog(path.parent / CATALOG_FILENAME, now, ravs, catalog, newest, texts)
+    write_catalog(path.parent / CATALOG_FILENAME, now, ravs, catalog, newest, texts, lessons_file)
     sources = sorted({entry['source'] for entry in podcasts if entry['source']})
     replacements = {
         'LANG': escape(lang), 'DIR': texts['dir'], 'TITLE': escape(title), 'TAGLINE': escape(texts['tagline']),
@@ -727,17 +727,23 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
     }, ensure_ascii=False), encoding='utf8')
 
 
-def write_catalog(path, now, ravs, series, newest, texts):
+def write_catalog(path, now, ravs, series, newest, texts, search):
     """
     What the app (android/) browses, at a name that doesn't change: the ravs (by number of series), their series, and
-    the newest lessons; a series' lessons are in its own file (lessons/<id>.json), as the page's are. Paths of images
-    are relative to the site.
+    the newest lessons; a series' lessons are in its own file (lessons/<id>.json), as the page's are, and every lesson
+    is in the page's search index (search). Paths of images are relative to the site.
     """
+    images = {}
+    for rav, count, portrait in ravs:  # (one without a portrait, as the page shows him: a letter, on his color)
+        images[rav] = portrait or f'{presentation.ART_DIR}/rav-{hashlib.sha1(rav.encode()).hexdigest()[:8]}.png'
+        if not portrait:
+            presentation.make_avatar(path.parent / images[rav], rav)
     path.write_text(json.dumps({
         'version': CATALOG_VERSION,
         'updated': now.isoformat(timespec='seconds'),
         'groups': texts['groups'],
-        'ravs': [{'name': rav, 'series': count, 'image': portrait} for rav, count, portrait in ravs],
+        'search': search,  # the page's search index, of every lesson
+        'ravs': [{'name': rav, 'series': count, 'image': images[rav]} for rav, count, portrait in ravs],
         'series': series,
         'newest': [{'series': feed_id, 'position': position, 'title': episode.original_title or episode.title or '',
                     'date': episode.publication_date.isoformat(), 'minutes': minutes(episode),
