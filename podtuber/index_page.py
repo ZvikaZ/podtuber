@@ -376,12 +376,24 @@ function shareLink(hash, title, text) {
 for (const button of document.querySelectorAll('button[data-share]'))
   button.onclick = () => shareLink(button.closest('li').id, button.dataset.title, button.dataset.text);
 
-function listenLink(url) {
+function listenLink(url, lesson) {  // lesson: "<series id>/<its number>", which the app plays (see below)
   const link = element('a', TEXTS.listen, 'btn');
   link.href = url;
   link.target = '_blank';
   link.rel = 'noopener';
+  link.dataset.lesson = lesson;
   return link;
+}
+// in the Android app (android/), whose screen is this page: a lesson is played by its player (as in the car, where
+// it can be continued), and there's no need to offer the app
+if (window.ShiurimApp) {
+  document.addEventListener('click', event => {
+    const link = event.target.closest('a[data-lesson]');
+    if (!link) return;
+    event.preventDefault();
+    window.ShiurimApp.play(link.dataset.lesson);
+  }, true);
+  document.querySelector('a[href="%APK%"]')?.closest('li')?.remove();
 }
 function row(meta, links) {  // a lesson's date and length, and its buttons beside them
   const line = element('div', null, 'row');
@@ -403,6 +415,9 @@ async function toggleEpisodes(li, open) {
   const button = li.querySelector('button[data-episodes]');
   const box = li.querySelector('.episodes');
   open = open ?? box.hidden;
+  if (open === !box.hidden) return;
+  // closed, it's back where it was on the screen when it opened (however far its lessons were scrolled through)
+  if (open) li.dataset.top = li.getBoundingClientRect().top;
   if (open && !box.childElementCount) {
     const episodes = await (await fetch(`lessons/${encodeURIComponent(li.id)}.json`)).json();
     const list = element('ol');
@@ -420,7 +435,7 @@ async function toggleEpisodes(li, open) {
       const share = element('button', TEXTS.share, 'btn');
       share.type = 'button';
       share.onclick = () => shareLink(`${li.id}/${index + 1}`, title);
-      links.append(listenLink(url), share);
+      links.append(listenLink(url, `${li.id}/${index + 1}`), share);
       item.append(row(meta, links));
       return item;
     }));
@@ -443,14 +458,13 @@ async function toggleEpisodes(li, open) {
     box.append(bar, list);
   }
   box.hidden = !open;
+  if (!open && li.dataset.top) window.scrollBy(0, li.getBoundingClientRect().top - li.dataset.top);
   button.setAttribute('aria-expanded', open);
   button.dataset.label = button.dataset.label || button.textContent;
   button.textContent = open ? TEXTS.hide_lessons : button.dataset.label;
 }
-// closed, with the series back in view if its lessons were scrolled through
 function closeEpisodes(li) {
   toggleEpisodes(li, false);
-  if (li.getBoundingClientRect().top < 0) li.scrollIntoView({block: 'start'});
 }
 // the sticky lessons' bar sits under the sticky search bar, whatever its height
 const searchBar = document.querySelector('.bar');
@@ -528,7 +542,7 @@ function lessonResult([series, title, description, date, minutes, position, url]
     show();
   };
   const links = element('div', null, 'links');
-  links.append(listenLink(url), link);
+  links.append(listenLink(url, `${feedId}/${position}`), link);
   li.append(row(meta, links));
   return li;
 }
@@ -699,7 +713,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         'FOOTER': texts['footer'].format(sources=', '.join(sources), issues=ISSUES_URL),
         'TEXTS': json.dumps({**texts['script'], 'groups': texts['groups'], 'scope': texts['scope']}, ensure_ascii=False),
         'LESSONS_URL': json.dumps(lessons_file),
-        'SCRIPT': SCRIPT,
+        'SCRIPT': SCRIPT.replace('%APK%', APK),
     }
     page = PAGE
     for key, value in replacements.items():
@@ -774,7 +788,8 @@ def new_lessons(newest, texts):
             f'<div class="name" dir="auto">{escape(episode.original_title or episode.title or "")}</div>'
             f'<div class="row"><div class="meta">{escape(name)} · {escape(rav)} · '
             f'{texts["date"](episode.publication_date.date())}</div>'
-            f'<div class="links"><a class="btn" href="{url}" target="_blank" rel="noopener">{texts["script"]["listen"]}</a>'
+            f'<div class="links"><a class="btn" href="{url}" target="_blank" rel="noopener" '
+            f'data-lesson="{escape(feed_id)}/{position}">{texts["script"]["listen"]}</a>'
             f'<a class="btn" href="#{escape(feed_id)}/{position}">{texts["script"]["to_series"]}</a></div></div></li>')
     return ''.join(lines)
 

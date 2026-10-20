@@ -29,7 +29,7 @@ data class Queue(val lessons: List<Node>, val start: Int, val position: Long)
 
 /**
  * The browse tree, as Android Auto and the phone show it:
- *   root: continue (the series heard lately, each at its next lesson), newest lessons, the rabbis
+ *   root: the rabbis, the newest lessons, continue (the series heard lately, each at its next lesson)
  *   a rav: his series, in groups (courses, holidays, general lessons) when he has more than one
  *   a series: its lessons, numbered, with how much of each was heard
  * Ids: "continue", "newest", "ravs", "rav/<name>", "group/<group>/<rav>", "series/<id>", "lesson/<series id>/<number>"
@@ -50,9 +50,9 @@ class Library(private val source: Source, private val listening: Listening, priv
     }
 
     fun root() = listOf(
-        Node(CONTINUE, labels.continueTab, browsable = true, art = "icon:continue"),
-        Node(NEWEST, labels.newestTab, browsable = true, art = "icon:newest"),
         Node(RAVS, labels.ravsTab, browsable = true, art = "icon:ravs", grid = true),
+        Node(NEWEST, labels.newestTab, browsable = true, art = "icon:newest"),
+        Node(CONTINUE, labels.continueTab, browsable = true, art = "icon:continue"),
     )
 
     fun children(id: String): List<Node> = when {

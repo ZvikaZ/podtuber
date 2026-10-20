@@ -7,8 +7,5 @@
     <string name="series_count">%d סדרות</string>
     <string name="lessons_count">%d שיעורים</string>
     <string name="minutes">%d דק\'</string>
-    <string name="lesson_of">שיעור %1$d מתוך %2$d</string>
-    <string name="nothing_to_continue">עוד לא האזנת לשיעורים. השיעורים שתתחיל יופיעו כאן.</string>
-    <string name="offline">אין חיבור לאינטרנט, ואין עדיין שיעורים שמורים בטלפון.</string>
-    <string name="back">חזרה</string>
+    <string name="no_app">אין בטלפון אפליקציה שיכולה לפתוח את זה. אפשר להתקין אפליקציית פודקאסטים, כמו Pocket Casts.</string>
 </resources>

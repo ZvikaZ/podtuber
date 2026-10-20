@@ -37,10 +37,10 @@ class LibraryTest {
     }, listening, Labels("המשך", "חדשים", "רבנים", { "$it סדרות" }, { "$it שיעורים" }, { "$it דק'" }))
 
     @Test
-    fun `the root has the three tabs, the rabbis as a grid`() {
+    fun `the root has the three tabs, the rabbis first, as a grid`() {
         val root = library().children(Library.ROOT)
-        assertEquals(listOf("continue", "newest", "ravs"), root.map { it.id })
-        assertEquals(true, root.last().grid)
+        assertEquals(listOf("ravs", "newest", "continue"), root.map { it.id })
+        assertEquals(true, root.first().grid)
     }
 
     @Test
