@@ -2,6 +2,7 @@ package io.github.zvikaz.shiurim
 
 import android.util.JsonReader
 import android.util.JsonToken
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -203,6 +204,7 @@ class CatalogRepository(private val directory: File, private val siteUrl: String
                     fetched()
                 }
             } catch (error: IOException) {
+                Log.e("CatalogRepository", "Failed to fetch ${siteUrl + path}", error)
                 offlineUntil = System.currentTimeMillis() + RETRY_AFTER
                 if (!file.exists()) throw error
             }
@@ -212,6 +214,9 @@ class CatalogRepository(private val directory: File, private val siteUrl: String
     }
 
     private fun fetch(url: String): String {
+        // Some mobile networks advertise working IPv6 but silently drop GitHub Pages' IPv4 route. Prefer IPv6
+        // when both are available; IPv4-only hosts still resolve and connect normally.
+        System.setProperty("java.net.preferIPv6Addresses", "true")
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = TIMEOUT
         connection.readTimeout = TIMEOUT

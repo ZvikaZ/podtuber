@@ -9,12 +9,14 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -41,6 +43,7 @@ import kotlinx.coroutines.launch
  * The player, and the library Android Auto (and the app's own screen) browses: see [Library]. Playing a lesson plays
  * its series on from it, from where it was left; where each lesson was left is saved as it plays.
  */
+@UnstableApi
 class PlaybackService : MediaLibraryService() {
     private companion object {
         const val SAVE_EVERY = 10_000L
@@ -54,12 +57,15 @@ class PlaybackService : MediaLibraryService() {
         const val NEXT = "next"
         const val SPEED = "speed"  // the player's speed, to the next one of SPEEDS
         const val SUBSCRIBE = "subscribe"  // a series (or the playing lesson's), to a podcast app
+        const val HEARD = "heard"  // a lesson, a series, or the playing lesson
+        const val DISMISS = "dismiss"  // a lesson's series from Continue, without marking it heard
         const val CHANNEL = "subscribe"
         // with the icons that show them (written by tools/speed_icons.py)
         val SPEEDS = listOf(1.0f to R.drawable.ic_speed_1, 1.2f to R.drawable.ic_speed_1_2,
             1.5f to R.drawable.ic_speed_1_5, 1.8f to R.drawable.ic_speed_1_8, 2.0f to R.drawable.ic_speed_2,
             0.8f to R.drawable.ic_speed_0_8)
-        val COMMANDS = listOf(BACK, FORWARD, NEXT, SPEED, SUBSCRIBE).map { SessionCommand(it, Bundle.EMPTY) }
+        val COMMANDS = listOf(BACK, FORWARD, NEXT, SPEED, SUBSCRIBE, HEARD, DISMISS)
+            .map { SessionCommand(it, Bundle.EMPTY) }
     }
 
     private lateinit var player: ExoPlayer
@@ -95,7 +101,7 @@ class PlaybackService : MediaLibraryService() {
             .setSessionActivity(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
             .setMediaButtonPreferences(buttons())
-            .setCommandButtonsForMediaItems(listOf(subscribeButton()))
+            .setCommandButtonsForMediaItems(listOf(subscribeButton(), heardButton(), dismissButton()))
             .build()
     }
 
@@ -118,6 +124,7 @@ class PlaybackService : MediaLibraryService() {
                 .setDisplayName(getString(R.string.speed, speed)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
             CommandButton.Builder(CommandButton.ICON_NEXT).setSessionCommand(SessionCommand(NEXT, Bundle.EMPTY))
                 .setDisplayName(getString(R.string.next_lesson)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
+            heardButton(),
             subscribeButton(),
         )
     }
@@ -127,6 +134,14 @@ class PlaybackService : MediaLibraryService() {
     private fun subscribeButton() = CommandButton.Builder(CommandButton.ICON_PLAYLIST_ADD)
         .setSessionCommand(SessionCommand(SUBSCRIBE, Bundle.EMPTY))
         .setDisplayName(getString(R.string.subscribe)).setSlots(CommandButton.SLOT_OVERFLOW).build()
+
+    private fun heardButton() = CommandButton.Builder(CommandButton.ICON_CHECK_CIRCLE_FILLED)
+        .setSessionCommand(SessionCommand(HEARD, Bundle.EMPTY))
+        .setDisplayName(getString(R.string.mark_heard)).setSlots(CommandButton.SLOT_OVERFLOW).build()
+
+    private fun dismissButton() = CommandButton.Builder(CommandButton.ICON_QUEUE_REMOVE)
+        .setSessionCommand(SessionCommand(DISMISS, Bundle.EMPTY))
+        .setDisplayName(getString(R.string.remove_continue)).setSlots(CommandButton.SLOT_OVERFLOW).build()
 
     /** the player's next speed (of SPEEDS), kept for next time */
     private fun nextSpeed() {
@@ -173,8 +188,29 @@ class PlaybackService : MediaLibraryService() {
     /** where the playing lesson is, saved */
     private fun save() {
         val id = player.currentMediaItem?.mediaId ?: return
-        if (id.startsWith("lesson/") && player.currentPosition > 0)
-            positions.save(Library.lessonKey(id), player.currentPosition, player.duration.coerceAtLeast(0))
+        if (id.startsWith("lesson/") && player.currentPosition > 0) {
+            val key = Library.lessonKey(id)
+            val wasFinished = positions.progress(key)?.finished == true
+            positions.save(key, player.currentPosition, player.duration.coerceAtLeast(0))
+            if (!wasFinished && positions.progress(key)?.finished == true)
+                notifyProgressChanged(Library.lessonParts(id).first)
+        }
+    }
+
+    private fun finish(id: String) {
+        positions.finished(Library.lessonKey(id))
+        notifyProgressChanged(Library.lessonParts(id).first)
+    }
+
+    private fun notifyProgressChanged(seriesId: String) {
+        scope.launch(Dispatchers.IO) {
+            val counts = listOf(Library.CONTINUE, Library.NEWEST, "series/$seriesId").mapNotNull { parent ->
+                runCatching { parent to library.children(parent).size }.getOrNull()
+            }
+            launch(Dispatchers.Main) {
+                for ((parent, count) in counts) session.notifyChildrenChanged(parent, count, null)
+            }
+        }
     }
 
     private inner class Saver : Player.Listener {
@@ -193,16 +229,36 @@ class PlaybackService : MediaLibraryService() {
         override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) {
             // played to its end, on to the next lesson: the one before was heard
             if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION)
-                old.mediaItem?.mediaId?.takeIf { it.startsWith("lesson/") }?.let { positions.finished(Library.lessonKey(it)) }
+                old.mediaItem?.mediaId?.takeIf { it.startsWith("lesson/") }?.let(::finish)
         }
 
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_ENDED)
-                player.currentMediaItem?.mediaId?.takeIf { it.startsWith("lesson/") }?.let { positions.finished(Library.lessonKey(it)) }
+                player.currentMediaItem?.mediaId?.takeIf { it.startsWith("lesson/") }?.let(::finish)
         }
     }
 
     private inner class Callback : MediaLibrarySession.Callback {
+        /** Steering-wheel previous/next are spoken-audio skips; the explicit Next lesson command remains separate. */
+        @UnstableApi
+        @Suppress("DEPRECATION")
+        override fun onMediaButtonEvent(session: MediaSession, controllerInfo: MediaSession.ControllerInfo,
+                                        intent: Intent): Boolean {
+            val event = intent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT) ?: return false
+            val handled = when (event.keyCode) {
+                KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) player.seekBack()
+                    true
+                }
+                KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) player.seekForward()
+                    true
+                }
+                else -> false
+            }
+            return handled
+        }
+
         /** the player's buttons and the podcast app, besides what a library offers */
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
             val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
@@ -228,6 +284,36 @@ class PlaybackService : MediaLibraryService() {
                         SessionResult(SessionResult.RESULT_SUCCESS)
                     }
                 }
+                HEARD -> {
+                    val id = args.getString(MediaConstants.EXTRA_KEY_MEDIA_ID) ?: player.currentMediaItem?.mediaId
+                    return scope.future(Dispatchers.IO) {
+                        val series = when {
+                            id?.startsWith("lesson/") == true -> {
+                                positions.finished(Library.lessonKey(id))
+                                Library.lessonParts(id).first
+                            }
+                            id?.startsWith("series/") == true -> {
+                                val found = library.seriesOf(id)
+                                    ?: return@future SessionResult(SessionError.ERROR_BAD_VALUE)
+                                positions.finishedSeries(found.id, found.lessons)
+                                found.id
+                            }
+                            else -> return@future SessionResult(SessionError.ERROR_BAD_VALUE)
+                        }
+                        notifyProgressChanged(series)
+                        SessionResult(SessionResult.RESULT_SUCCESS)
+                    }
+                }
+                DISMISS -> {
+                    val id = args.getString(MediaConstants.EXTRA_KEY_MEDIA_ID)
+                        ?: return immediate(SessionResult(SessionError.ERROR_BAD_VALUE))
+                    if (!id.startsWith("lesson/")) return immediate(SessionResult(SessionError.ERROR_BAD_VALUE))
+                    return scope.future(Dispatchers.IO) {
+                        positions.dismiss(Library.lessonKey(id))
+                        notifyProgressChanged(Library.lessonParts(id).first)
+                        SessionResult(SessionResult.RESULT_SUCCESS)
+                    }
+                }
                 else -> return immediate(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
             }
             return immediate(SessionResult(SessionResult.RESULT_SUCCESS))
@@ -250,7 +336,7 @@ class PlaybackService : MediaLibraryService() {
                 val nodes = if (parentId == RECENT_ROOT) library.children(Library.CONTINUE).take(1) else library.children(parentId)
                 LibraryResult.ofItemList(nodes.map(::item), params)
             } catch (error: Exception) {
-                LibraryResult.ofError<ImmutableList<MediaItem>>(LibraryResult.RESULT_ERROR_IO)
+                LibraryResult.ofError<ImmutableList<MediaItem>>(SessionError.ERROR_IO)
             }
         }
 
@@ -258,7 +344,7 @@ class PlaybackService : MediaLibraryService() {
                                mediaId: String) = scope.future(Dispatchers.IO) {
             val node = runCatching { library.node(mediaId) }.getOrNull()
             if (node != null) LibraryResult.ofItem(item(node), null)
-            else LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
+            else LibraryResult.ofError(SessionError.ERROR_BAD_VALUE)
         }
 
         override fun onSearch(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, query: String,
@@ -305,6 +391,7 @@ class PlaybackService : MediaLibraryService() {
 
         private fun resolve(items: List<MediaItem>): MutableList<MediaItem> =
             items.mapNotNull { requested -> library.node(requested.mediaId)?.let(::item) }.toMutableList()
+
     }
 
     private fun folder(id: String, title: String) = MediaItem.Builder().setMediaId(id).setMediaMetadata(
@@ -323,13 +410,18 @@ class PlaybackService : MediaLibraryService() {
             })
             extras.putDouble(MediaConstants.EXTRAS_KEY_COMPLETION_PERCENTAGE, progress.fraction)
         }
+        val commands = buildList {
+            if (node.series != null) add(SUBSCRIBE)
+            if (node.id.startsWith("lesson/") || node.id.startsWith("series/")) add(HEARD)
+            if (node.dismissible) add(DISMISS)
+        }
         val metadata = MediaMetadata.Builder()
             .setTitle(node.title).setSubtitle(node.subtitle).setArtist(node.subtitle.ifEmpty { null })
             .setIsBrowsable(node.browsable).setIsPlayable(!node.browsable)
             .setMediaType(if (node.browsable) MediaMetadata.MEDIA_TYPE_FOLDER_MIXED else MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE)
             .setArtworkUri(artwork(node.art))
             .setExtras(extras)
-            .setSupportedCommands(if (node.series != null) listOf(SUBSCRIBE) else emptyList())
+            .setSupportedCommands(commands)
             .build()
         return MediaItem.Builder().setMediaId(node.id).setMediaMetadata(metadata)
             .apply { node.url?.let { setUri(it) } }.build()

@@ -25,6 +25,7 @@ data class Node(
     val progress: Progress? = null, val grid: Boolean = false,  // grid: its children shown as a grid
     val url: String? = null,  // a lesson's audio
     val series: String? = null,  // a series', or a lesson's: which can be added to a podcast app
+    val dismissible: Boolean = false,  // this copy is an entry in Continue, and can be removed from it
 )
 
 data class Queue(val lessons: List<Node>, val start: Int, val position: Long)
@@ -153,7 +154,7 @@ class Library(private val source: Source, private val listening: Listening, priv
         val progress = listening.progress(key)
         val index = if (progress?.finished == true) position else position - 1
         val series = source.catalog().series(seriesId) ?: return@mapNotNull null
-        lessons.getOrNull(index)?.copy(subtitle = "${series.name} · ${series.rav}")
+        lessons.getOrNull(index)?.copy(subtitle = "${series.name} · ${series.rav}", dismissible = true)
     }
 
     /** a series' lesson to go on from: the last one heard, or after it; else its first (a course) or newest */

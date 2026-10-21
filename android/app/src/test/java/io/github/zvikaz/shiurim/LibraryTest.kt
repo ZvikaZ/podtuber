@@ -83,7 +83,9 @@ class LibraryTest {
         val listening = FakeListening(
             mutableMapOf("a/1" to Progress(3_000_000, 3_000_000, true), "d/1" to Progress(5_000, 2_000_000, false)),
             mutableListOf("a/1", "d/1"))
-        assertEquals(listOf("lesson/a/2", "lesson/d/1"), library(listening).children(Library.CONTINUE).map { it.id })
+        val continued = library(listening).children(Library.CONTINUE)
+        assertEquals(listOf("lesson/a/2", "lesson/d/1"), continued.map { it.id })
+        assertEquals(listOf(true, true), continued.map { it.dismissible })
     }
 
     @Test

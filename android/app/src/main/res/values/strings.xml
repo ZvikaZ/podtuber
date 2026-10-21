@@ -11,7 +11,17 @@
     <string name="forward_30">30 שניות קדימה</string>
     <string name="speed">מהירות %.1f×</string>
     <string name="next_lesson">השיעור הבא</string>
+    <string name="mark_heard">סימון כנשמע</string>
+    <string name="remove_continue">הסרה מהמשך</string>
     <string name="subscribe">הוספה לאפליקציית הפודקאסטים</string>
     <string name="subscribe_channel">הוספה לאפליקציית פודקאסטים</string>
     <string name="no_app">אין בטלפון אפליקציה שיכולה לפתוח את זה. אפשר להתקין אפליקציית פודקאסטים, כמו Pocket Casts.</string>
+    <string name="now_playing">מתנגן עכשיו</string>
+    <string name="close_player">חזרה</string>
+    <string name="no_lesson">אין שיעור לנגן</string>
+    <string name="play">ניגון</string>
+    <string name="pause">השהיה</string>
+    <string name="next_short">הבא ›</string>
+    <string name="heard">✓ נשמע</string>
+    <string name="subscribe_short">＋ לפודקאסטים</string>
 </resources>

@@ -96,7 +96,8 @@ class CarPlayerTest {
 
         // what the car is given: our buttons for back and forward, in their slots, and no "previous"
         println("car state: $state, extras ${state.extras?.keySet()?.associateWith { state.extras!!.get(it) }}")
-        assertEquals(listOf("back", "forward", "speed", "next", "subscribe"), state.customActions.map { it.action })
+        assertEquals(listOf("back", "forward", "speed", "next", "heard", "subscribe"),
+            state.customActions.map { it.action })
         assertEquals(0L, state.actions and PlaybackState.ACTION_SKIP_TO_PREVIOUS)
         assertEquals(0L, state.actions and PlaybackState.ACTION_SKIP_TO_NEXT)
         assertFalse(state.extras!!.getBoolean("android.media.playback.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_PREVIOUS", true))

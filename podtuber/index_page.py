@@ -44,15 +44,16 @@ TEXTS = {
         'howto': 'איך מאזינים?',
         'howto_body': (
             '<ul><li>כאן: <b>האזנה</b>, ליד כל שיעור.</li>'
-            '<li>באפליקציה, עם שיעורים חדשים מעצמם: <b>הוספה לאפליקציה</b> (אין לכם? מומלצת '
-            '<a href="{pocketcasts}">Pocket Casts</a>). לא נפתחה? <b>העתקת הכתובת</b>, ובאפליקציה: הוספה לפי כתובת.</li>'
-            '<li>ברכב (Android Auto): האפליקציה שלנו לאנדרואיד (ניסיונית). '
-            '<button type="button" class="btn" id="car-open">הורדה והוראות</button></li></ul>'
-            # how to install the app, and let Android Auto show it (it isn't from Google Play); in the app (where
-            # this page is its screen), without the download
-            '<dialog id="car"><h2>שיעורים ברכב (Android Auto)</h2><ol>'
+            '<li><b>באנדרואיד:</b> האפליקציה שלנו מציעה נגן מלא, המשך האזנה וסימון שיעורים שנשמעו, ופועלת גם ב־Android Auto. '
+            '<button type="button" class="btn" id="car-open">הורדת האפליקציה</button></li>'
+            '<li>באפליקציית פודקאסטים אחרת, עם שיעורים חדשים מעצמם: <b>הוספה לאפליקציה</b> (מומלצת '
+            '<a href="{pocketcasts}">Pocket Casts</a>). לא נפתחה? <b>העתקת הכתובת</b>, ובאפליקציה: הוספה לפי כתובת.</li></ul>'
+            # how to install the app, and optionally let Android Auto show it (it isn't from Google Play); in the
+            # app (where this page is its screen), without the download
+            '<dialog id="car"><h2>האפליקציה לאנדרואיד</h2><ol>'
             '<li class="download"><a class="btn primary" href="{apk}" download>הורדת האפליקציה</a><br>'
             'פותחים את הקובץ שירד ומתקינים. אם הטלפון שואל, מאשרים התקנה ממקור זה.</li>'
+            '<li>פותחים את <b>שיעורים לדרך</b> ומאזינים בטלפון. להאזנה גם ברכב, ממשיכים לשלבים הבאים:</li>'
             '<li>פותחים את ההגדרות של Android Auto (בהגדרות הטלפון, חיפוש: Android Auto), גוללים לסוף, '
             'ולוחצים 10 פעמים על <b>גרסה</b>, עד שמופיעה הודעה על מצב מפתחים.</li>'
             '<li>באותו מסך: בתפריט <b>⋮</b> למעלה, <b>הגדרות מפתחים</b>, ומסמנים <b>מקורות לא ידועים</b>.</li>'
@@ -91,6 +92,11 @@ TEXTS = {
             'hide_lessons': 'סגירת השיעורים',
             'back': 'חזרה',
             'listen': 'האזנה',
+            'continue_title': 'המשך',
+            'heard': 'נשמע ✓',
+            'mark_heard': 'סימון כנשמע',
+            'mark_series_heard': 'סימון כל הסדרה כנשמעה',
+            'remove_continue': 'הסרה מהמשך',
             'share': 'שיתוף',
             'to_series': 'לסדרה',
             'minutes': "{count} דק'",
@@ -201,13 +207,17 @@ PAGE = """<!DOCTYPE html>
   .btn.quiet { border-color: transparent; padding-inline: .5rem; }  /* secondary: copying and sharing */
   .secondary { display: flex; margin-inline-start: auto; }  /* together, at the row's end, or wrapped below */
   .episodes { grid-column: 1 / -1; margin-top: .5rem; }
-  .episodes-bar { display: flex; gap: .5rem; align-items: center; position: sticky; z-index: 1;
+  .episodes-bar { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; position: sticky; z-index: 1;
                   top: calc(env(safe-area-inset-top, 0px) + var(--bar, 0px)); background: var(--bg);
                   padding-block: .4rem; border-bottom: 1px solid var(--line); }
   .episodes-bar .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   li.chosen .episodes-bar { background: color-mix(in srgb, var(--accent) 8%, var(--bg)); }
   .episodes ol { list-style: none; margin: .25rem 0 0; padding: 0; }
   .episodes ol > li, #lessons li, #new li { padding: .6rem 0; border-top: 1px solid var(--line); }
+  #continue-list li { padding: .6rem 0; border-top: 1px solid var(--line); }
+  li.heard > .name::after { content: " ✓"; color: var(--good); }
+  li.started > .name::after { content: " ◔"; color: var(--accent); }
+  .links .heard-action[disabled] { color: var(--good); border-color: transparent; opacity: 1; cursor: default; }
   .num { color: var(--muted); font-variant-numeric: tabular-nums; margin-inline-end: .35rem; }
   .description { display: block; text-align: start; color: var(--muted); font: inherit; font-size: .9rem; background: none;
                  border: 0; padding: 0; cursor: pointer; display: -webkit-box; -webkit-box-orient: vertical;
@@ -252,6 +262,7 @@ PAGE = """<!DOCTYPE html>
 <main id="content">
 <p id="status" class="note" aria-live="polite"></p>
 <section id="home">
+<div id="continue-home" hidden><h2>%CONTINUE_TITLE%</h2><ul class="plain" id="continue-list"></ul></div>
 <h2>%RAVS_TITLE%</h2>
 <ul class="ravs">%RAV_CARDS%</ul>
 <h2>%NEW_TITLE%</h2>
@@ -411,18 +422,44 @@ function listenLink(url, lesson) {  // lesson: "<series id>/<its number>", which
   link.dataset.lesson = lesson;
   return link;
 }
+const app = window.ShiurimApp;
+function decorateLesson(item, lesson) {
+  if (!app || !item) return item;
+  item.dataset.lessonKey = lesson;
+  const state = app.state(lesson);
+  item.classList.toggle('heard', state === 'heard');
+  item.classList.toggle('started', state === 'started');
+  const links = item.querySelector(':scope > .row > .links');
+  if (!links) return item;
+  let button = links.querySelector('.heard-action');
+  if (!button) {
+    button = element('button', null, 'btn quiet heard-action');
+    button.type = 'button';
+    button.onclick = () => {
+      app.markHeard(lesson);
+      decorateLesson(item, lesson);
+      showContinue();
+    };
+    links.append(button);
+  }
+  button.textContent = state === 'heard' ? TEXTS.heard : TEXTS.mark_heard;
+  button.disabled = state === 'heard';
+  return item;
+}
 // in the Android app (android/), whose screen is this page: a lesson is played by its player (as in the car, where
 // it can be continued)
-if (window.ShiurimApp) {
+if (app) {
   document.addEventListener('click', event => {
     const link = event.target.closest('a[data-lesson]');
     if (!link) return;
     event.preventDefault();
-    window.ShiurimApp.play(link.dataset.lesson);
+    app.play(link.dataset.lesson);
   }, true);
   // the app is here already: only how to have it in the car
   car.querySelector('.download').remove();
   $('car-open').textContent = TEXTS.car_instructions;
+  for (const link of document.querySelectorAll('a[data-lesson]'))
+    decorateLesson(link.closest('li'), link.dataset.lesson);
 }
 function row(meta, links) {  // a lesson's date and length, and its buttons beside them
   const line = element('div', null, 'row');
@@ -451,8 +488,9 @@ async function toggleEpisodes(li, open) {
     const episodes = await (await fetch(`lessons/${encodeURIComponent(li.id)}.json`)).json();
     const list = element('ol');
     list.append(...episodes.map(([title, date, minutes, url, text], index) => {
+      const lesson = `${li.id}/${index + 1}`;
       const item = element('li');
-      item.id = `${li.id}/${index + 1}`;
+      item.id = lesson;
       const name = element('div', null, 'name');
       name.dir = 'auto';
       name.append(element('span', `${index + 1}.`, 'num'), title);
@@ -464,9 +502,9 @@ async function toggleEpisodes(li, open) {
       const share = element('button', TEXTS.share, 'btn');
       share.type = 'button';
       share.onclick = () => shareLink(`${li.id}/${index + 1}`, title);
-      links.append(listenLink(url, `${li.id}/${index + 1}`), share);
+      links.append(listenLink(url, lesson), share);
       item.append(row(meta, links));
-      return item;
+      return decorateLesson(item, lesson);
     }));
     // the series' name, closing and the lessons' order, kept in view (under the search bar) through the lessons
     const bar = element('div', null, 'episodes-bar');
@@ -482,6 +520,23 @@ async function toggleEpisodes(li, open) {
     close.type = 'button';
     close.onclick = () => closeEpisodes(li);
     bar.append(name);
+    if (app) {
+      const heard = element('button', null, 'btn quiet');
+      heard.type = 'button';
+      const update = () => {
+        const complete = [...list.children].every(item => app.state(item.dataset.lessonKey) === 'heard');
+        heard.textContent = complete ? TEXTS.heard : TEXTS.mark_series_heard;
+        heard.disabled = complete;
+      };
+      heard.onclick = () => {
+        app.markSeriesHeard(li.id, episodes.length);
+        for (const item of list.children) decorateLesson(item, item.dataset.lessonKey);
+        update();
+        showContinue();
+      };
+      update();
+      bar.append(heard);
+    }
     if (episodes.length > 1) bar.append(order);
     bar.append(close);
     box.append(bar, list);
@@ -549,8 +604,9 @@ wholeWords.onchange = typed;
 
 function lessonResult([series, title, description, date, minutes, position, url], query) {
   const [feedId, seriesName, rav] = lessons.series[series];
+  const lesson = `${feedId}/${position}`;
   const li = element('li', null, 'go');
-  li.dataset.go = `${feedId}/${position}`;
+  li.dataset.go = lesson;
   const name = element('div', null, 'name');
   name.dir = 'auto';
   name.append(highlighted(title, query));
@@ -571,9 +627,38 @@ function lessonResult([series, title, description, date, minutes, position, url]
     show();
   };
   const links = element('div', null, 'links');
-  links.append(listenLink(url, `${feedId}/${position}`), link);
+  links.append(listenLink(url, lesson), link);
   li.append(row(meta, links));
-  return li;
+  return decorateLesson(li, lesson);
+}
+
+async function showContinue() {
+  if (!app) return;
+  await loadLessons();
+  let recent = [];
+  try { recent = JSON.parse(app.recent()); } catch {}
+  const entries = new Map(lessons.lessons.map(entry => {
+    const [series, , , , , position] = entry;
+    return [`${lessons.series[series][0]}/${position}`, entry];
+  }));
+  const rows = recent.map(key => {
+    const slash = key.lastIndexOf('/');
+    const position = Number(key.slice(slash + 1));
+    const target = app.state(key) === 'heard' ? `${key.slice(0, slash)}/${position + 1}` : key;
+    const entry = entries.get(target);
+    if (!entry) return null;
+    const item = lessonResult(entry, '');
+    const remove = element('button', TEXTS.remove_continue, 'btn quiet');
+    remove.type = 'button';
+    remove.onclick = () => {
+      app.removeFromContinue(key);
+      showContinue();
+    };
+    item.querySelector(':scope > .row > .links').append(remove);
+    return item;
+  }).filter(Boolean);
+  $('continue-list').replaceChildren(...rows);
+  $('continue-home').hidden = !rows.length;
 }
 
 async function showResults(query) {
@@ -659,6 +744,7 @@ document.addEventListener('click', event => {
 window.onpopstate = show;
 window.onhashchange = show;
 show();
+if (app) showContinue();
 
 const toTop = $('top');
 window.addEventListener('scroll', () => toTop.hidden = window.scrollY < 1500, {passive: true});
@@ -734,6 +820,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         'STALE': stale_note(stale, texts),
         'HOWTO': texts['howto'], 'HOWTO_BODY': texts['howto_body'].format(pocketcasts=POCKET_CASTS, apk=APK),
         'FILTER': texts['filter'], 'FILTER_LABEL': texts['filter_label'], 'WHOLE_WORDS': texts['whole_words'],
+        'CONTINUE_TITLE': texts['script']['continue_title'],
         'RAVS_TITLE': texts['ravs_title'], 'RAV_CARDS': rav_cards(ravs, texts),
         'NEW_TITLE': texts['new_title'], 'NEW': new_lessons(newest, texts),
         'SORT': texts['sort'], 'SORT_NAME': texts['sort_name'], 'SORT_UPDATED': texts['sort_updated'],

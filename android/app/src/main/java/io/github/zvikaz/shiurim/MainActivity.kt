@@ -6,36 +6,63 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import androidx.media3.ui.PlayerControlView
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import org.json.JSONArray
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 /**
  * The app on the phone is the site itself. Its pages open here; any other link (a podcast app's, to add a series
  * to it, or another site's) opens in the app the phone has for it. A lesson the site's "listen" plays is played by
  * the app's player, as in Android Auto: so where it was left is kept, and it can be continued in the car.
  */
+@UnstableApi
 class MainActivity : Activity() {
     private lateinit var web: WebView
-    private lateinit var controls: PlayerControlView
+    private lateinit var miniPlayer: LinearLayout
+    private lateinit var miniTitle: TextView
+    private lateinit var miniSubtitle: TextView
+    private lateinit var miniPlay: ImageButton
+    private lateinit var miniProgress: ProgressBar
     private lateinit var controllerFuture: ListenableFuture<MediaController>
     private val controller get() = if (controllerFuture.isDone) controllerFuture.get() else null
     private val site = Uri.parse(BuildConfig.SITE_URL)
+    private val positions by lazy { Positions(getSharedPreferences("positions", MODE_PRIVATE)) }
+    private val handler = Handler(Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() {
+            updateMiniPlayer(controller)
+            handler.postDelayed(this, 500)
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,20 +80,18 @@ class MainActivity : Activity() {
                 }
             }
         }
-        controls = PlayerControlView(this).apply {
-            showTimeoutMs = 0
-            // A spoken lesson is navigated within with 30-second skips. Keep changing lessons in the overflow menu.
-            setShowPreviousButton(false)
-            setShowNextButton(false)
-            setShowRewindButton(true)
-            setShowFastForwardButton(true)
-            visibility = View.GONE
-        }
-        setContentView(LinearLayout(this).apply {
+        miniPlayer = makeMiniPlayer()
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(web, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-            addView(controls)
-        })
+            addView(miniPlayer, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(76)))
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(0, bars.top, 0, bars.bottom)
+            insets
+        }
+        setContentView(root)
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl(BuildConfig.SITE_URL)
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
     }
@@ -77,16 +102,18 @@ class MainActivity : Activity() {
             .buildAsync()
         controllerFuture.addListener({
             val controller = controller ?: return@addListener
-            controls.player = controller
-            showControls(controller)
+            restoreLastLesson(controller)
+            updateMiniPlayer(controller)
             controller.addListener(object : Player.Listener {
-                override fun onEvents(player: Player, events: Player.Events) = showControls(player)
+                override fun onEvents(player: Player, events: Player.Events) = updateMiniPlayer(player)
             })
+            handler.removeCallbacks(tick)
+            handler.post(tick)
         }, MoreExecutors.directExecutor())
     }
 
     override fun onStop() {
-        controls.player = null
+        handler.removeCallbacks(tick)
         MediaController.releaseFuture(controllerFuture)
         super.onStop()
     }
@@ -102,10 +129,102 @@ class MainActivity : Activity() {
         else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
-    /** the player's controls, while there's something to play */
-    private fun showControls(player: Player) {
-        controls.visibility = if (player.mediaItemCount > 0) View.VISIBLE else View.GONE
+    /** A persistent, useful entry to the full player instead of Media3's context-free rectangular control strip. */
+    private fun makeMiniPlayer(): LinearLayout {
+        miniTitle = label(16f, Color.rgb(29, 28, 26), Typeface.BOLD).apply { maxLines = 1 }
+        miniSubtitle = label(13f, Color.rgb(89, 86, 80)).apply { maxLines = 1 }
+        val words = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(miniTitle)
+            addView(miniSubtitle)
+        }
+        miniPlay = ImageButton(this).apply {
+            setImageResource(R.drawable.ic_play_rtl)
+            scaleType = ImageView.ScaleType.CENTER
+            setPadding(0, 0, 0, 0)
+            background = rounded(Color.rgb(47, 93, 138), 28f)
+            isFocusable = true
+            setOnClickListener {
+                controller?.let { player -> if (player.isPlaying) player.pause() else player.play() }
+            }
+        }
+        miniProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(47, 93, 138))
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(228, 225, 218))
+        }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setPadding(dp(16), dp(7), dp(12), dp(5))
+            addView(TextView(this@MainActivity).apply {
+                text = "☊"
+                textSize = 25f
+                gravity = Gravity.CENTER
+                setTextColor(Color.rgb(47, 93, 138))
+                contentDescription = getString(R.string.app_name)
+            }, LinearLayout.LayoutParams(dp(48), dp(48)))
+            addView(words, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply {
+                marginStart = dp(10)
+                marginEnd = dp(8)
+            })
+            addView(miniPlay, LinearLayout.LayoutParams(dp(52), dp(52)))
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(251, 250, 247))
+                setStroke(dp(1), Color.rgb(228, 225, 218))
+            }
+            elevation = dp(8).toFloat()
+            visibility = View.GONE
+            addView(miniProgress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)))
+            addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            setOnClickListener { startActivity(Intent(this@MainActivity, NowPlayingActivity::class.java)) }
+        }
     }
+
+    private fun restoreLastLesson(player: MediaController) {
+        if (player.mediaItemCount != 0) return
+        val lesson = positions.recent().firstOrNull() ?: return
+        val series = lesson.substringBeforeLast('/', "")
+        val position = lesson.substringAfterLast('/', "").toIntOrNull() ?: return
+        if (series.isEmpty() || position <= 0) return
+        player.setMediaItem(MediaItem.Builder().setMediaId(Library.lessonId(series, position)).build())
+        player.prepare()
+    }
+
+    private fun updateMiniPlayer(player: Player?) {
+        if (player == null || player.mediaItemCount == 0) {
+            miniPlayer.visibility = View.GONE
+            return
+        }
+        miniPlayer.visibility = View.VISIBLE
+        val metadata = player.mediaMetadata
+        miniTitle.text = metadata.title ?: getString(R.string.app_name)
+        miniSubtitle.text = metadata.artist ?: metadata.subtitle ?: ""
+        miniPlay.setImageResource(if (player.isPlaying) R.drawable.ic_pause else R.drawable.ic_play_rtl)
+        miniPlay.contentDescription = getString(if (player.isPlaying) R.string.pause else R.string.play)
+        miniProgress.progress = if (player.duration > 0) (player.currentPosition * 1000 / player.duration).toInt() else 0
+    }
+
+    private fun label(size: Float, color: Int, style: Int = Typeface.NORMAL) = TextView(this).apply {
+        textSize = size
+        setTextColor(color)
+        typeface = Typeface.create(Typeface.DEFAULT, style)
+        gravity = Gravity.START
+        ellipsize = android.text.TextUtils.TruncateAt.END
+    }
+
+    private fun rounded(color: Int, radius: Float) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = dp(radius.toInt()).toFloat()
+    }
+
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
     private fun ours(url: Uri) = url.scheme == site.scheme && url.host == site.host && url.path.orEmpty().startsWith(site.path.orEmpty())
 
@@ -128,6 +247,33 @@ class MainActivity : Activity() {
                 prepare()
                 play()
             }
+        }
+
+        /** "heard", "started", or "" for a lesson shown by the site. */
+        @JavascriptInterface
+        fun state(lesson: String): String = lessonKey(lesson)?.let { key ->
+            positions.progress(key)?.let { if (it.finished) "heard" else if (it.position > 0) "started" else "" }
+        }.orEmpty()
+
+        @JavascriptInterface
+        fun markHeard(lesson: String) = lessonKey(lesson)?.let(positions::finished) ?: Unit
+
+        @JavascriptInterface
+        fun markSeriesHeard(series: String, lessonCount: Int) {
+            if (series.isNotBlank() && '/' !in series && lessonCount in 1..10_000)
+                positions.finishedSeries(series, lessonCount)
+        }
+
+        @JavascriptInterface
+        fun removeFromContinue(lesson: String) = lessonKey(lesson)?.let(positions::dismiss) ?: Unit
+
+        @JavascriptInterface
+        fun recent(): String = JSONArray(positions.recent()).toString()
+
+        private fun lessonKey(value: String): String? {
+            val series = value.substringBeforeLast('/', "")
+            val position = value.substringAfterLast('/', "").toIntOrNull()
+            return value.takeIf { series.isNotBlank() && '\n' !in series && position != null && position > 0 }
         }
     }
 }
