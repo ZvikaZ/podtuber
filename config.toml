@@ -156,6 +156,7 @@ image = 'https://zvikaz.github.io/podtuber/yosef-kalner.jpg'
 rav = 'הרב אשר וייס'
 source = 'אוצר התורה'
 feeds = ['https://rabmeireliyahu.github.io/ravasherweiss/feed.xml']
+image = 'https://zvikaz.github.io/podtuber/asher-weiss.jpg'
 # The feed mixes Hebrew, English and Yiddish. Publish local, Hebrew-only feeds split by title topic.
 publish = true
 title_language = 'he'

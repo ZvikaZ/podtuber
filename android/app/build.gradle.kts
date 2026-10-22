@@ -11,8 +11,8 @@ android {
         applicationId = "io.github.zvikaz.shiurim"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3"
+        versionCode = 4
+        versionName = "0.4"
         // the site the app browses: its catalog.json, and a file per series of its lessons (see podtuber/index_page.py)
         buildConfigField("String", "SITE_URL", "\"https://zvikaz.github.io/podtuber/\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
