@@ -61,7 +61,12 @@ TEXTS = {
             '<b>התאמה אישית של מרכז האפליקציות</b>, ומסמנים אותה.</li></ol>'
             '<form method="dialog"><button class="btn">סגירה</button></form></dialog>'),
         'ravs_title': 'הרבנים',
+        'rav_sort': 'מיון רבנים:',
+        'rav_sort_name': 'שם משפחה (א–ת)',
+        'rav_sort_series': 'מספר סדרות',
+        'rav_sort_lessons': 'מספר שיעורים',
         'series_count': '{count} סדרות',
+        'rav_counts': '{series} סדרות · {lessons} שיעורים',
         'new_title': 'שיעורים חדשים',
         'scope': 'סינון לפי {rav} – ביטול',
         'filter': 'חיפוש סדרה או שיעור…',
@@ -266,7 +271,8 @@ PAGE = """<!DOCTYPE html>
 <p id="status" class="note" aria-live="polite"></p>
 <section id="home">
 <div id="continue-home" hidden><h2>%CONTINUE_TITLE%</h2><ul class="plain" id="continue-list"></ul></div>
-<h2>%RAVS_TITLE%</h2>
+<div class="group-head"><h2>%RAVS_TITLE%</h2>
+<label class="sort">%RAV_SORT% <select id="rav-sort"><option value="name">%RAV_SORT_NAME%</option><option value="series">%RAV_SORT_SERIES%</option><option value="lessons">%RAV_SORT_LESSONS%</option></select></label></div>
 <ul class="ravs">%RAV_CARDS%</ul>
 <h2>%NEW_TITLE%</h2>
 <ul class="plain" id="new">%NEW%</ul>
@@ -571,6 +577,21 @@ const scope = $('scope');  // shown while a rav is chosen: his series, and searc
 scope.onclick = () => { rav = ''; typed(true); };
 for (const card of document.querySelectorAll('.ravs button'))
   card.onclick = () => { rav = card.dataset.rav; typed(true); window.scrollTo({top: 0}); };
+const ravList = document.querySelector('.ravs');
+const ravSort = $('rav-sort');
+ravSort.value = store.get('rav-sort') || 'series';
+function sortRavs() {
+  const key = ravSort.value;
+  const cards = [...ravList.children];
+  const bySurname = (a, b) => a.dataset.name.trim().split(/\s+/).at(-1).localeCompare(
+    b.dataset.name.trim().split(/\s+/).at(-1), 'he') || a.dataset.name.localeCompare(b.dataset.name, 'he');
+  cards.sort((a, b) => key === 'series' ? b.dataset.series - a.dataset.series || bySurname(a, b)
+    : key === 'lessons' ? b.dataset.lessons - a.dataset.lessons || bySurname(a, b)
+    : bySurname(a, b));
+  ravList.append(...cards);
+}
+ravSort.onchange = () => { store.set('rav-sort', ravSort.value); sortRavs(); };
+sortRavs();
 const sortSelect = $('sort');
 sortSelect.value = store.get('sort') || 'name';
 sortSelect.onchange = () => { store.set('sort', sortSelect.value); showBrowse(); };
@@ -827,6 +848,8 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         'FILTER': texts['filter'], 'FILTER_LABEL': texts['filter_label'], 'WHOLE_WORDS': texts['whole_words'],
         'CONTINUE_TITLE': texts['script']['continue_title'],
         'RAVS_TITLE': texts['ravs_title'], 'RAV_CARDS': rav_cards(ravs, texts),
+        'RAV_SORT': texts['rav_sort'], 'RAV_SORT_NAME': texts['rav_sort_name'],
+        'RAV_SORT_SERIES': texts['rav_sort_series'], 'RAV_SORT_LESSONS': texts['rav_sort_lessons'],
         'NEW_TITLE': texts['new_title'], 'NEW': new_lessons(newest, texts),
         'SORT': texts['sort'], 'SORT_NAME': texts['sort_name'], 'SORT_UPDATED': texts['sort_updated'],
         'SORT_SIZE': texts['sort_size'],
@@ -855,7 +878,7 @@ def write_catalog(path, now, ravs, series, newest, texts, search):
     is in the page's search index (search). Paths of images are relative to the site.
     """
     images = {}
-    for rav, count, portrait in ravs:  # (one without a portrait, as the page shows him: a letter, on his color)
+    for rav, series_count, lessons_count, portrait in ravs:  # without a portrait, the page shows a letter
         images[rav] = portrait or f'{presentation.ART_DIR}/rav-{hashlib.sha1(rav.encode()).hexdigest()[:8]}.png'
         if not portrait:
             presentation.make_avatar(path.parent / images[rav], rav)
@@ -864,7 +887,8 @@ def write_catalog(path, now, ravs, series, newest, texts, search):
         'updated': now.isoformat(timespec='seconds'),
         'groups': texts['groups'],
         'search': search,  # the page's search index, of every lesson
-        'ravs': [{'name': rav, 'series': count, 'image': images[rav]} for rav, count, portrait in ravs],
+        'ravs': [{'name': rav, 'series': series_count, 'lessons': lessons_count, 'image': images[rav]}
+                 for rav, series_count, lessons_count, portrait in ravs],
         'series': series,
         'newest': [{'series': feed_id, 'position': position, 'title': episode.original_title or episode.title or '',
                     'date': episode.publication_date.isoformat(), 'minutes': minutes(episode),
@@ -883,25 +907,29 @@ def group_of(name):
 
 
 def rav_summary(podcasts, base_url):
-    """each rav, with his number of podcasts and his portrait (only one of this site's own: the others are logos)"""
+    """each rav, with his podcast and lesson counts and portrait (only one of this site's own: the others are logos)"""
     counts = collections.Counter(entry['rav'] for entry in podcasts)
+    lessons = collections.Counter()
     portraits = {}
     for entry in podcasts:
+        lessons[entry['rav']] += len(entry['podcast'].episodes)
         image = entry.get('rav_image') or ''
         if image.startswith(base_url) and not image.endswith('bneidavid.png'):
             portraits.setdefault(entry['rav'], image.removeprefix(base_url))
-    return [(rav, count, portraits.get(rav)) for rav, count in counts.most_common()]
+    return [(rav, count, lessons[rav], portraits.get(rav)) for rav, count in counts.most_common()]
 
 
 def rav_cards(ravs, texts):
     cards = []
-    for rav, count, portrait in ravs:
+    for rav, series_count, lessons_count, portrait in ravs:
         picture = (f'<img src="{escape(portrait)}" alt="" loading="lazy" width="72" height="72">' if portrait else
                    f'<span class="avatar" style="background:{presentation.rav_color(rav)}">'
                    f'{escape(rav.split()[-1][0])}</span>')
-        cards.append(f'<li><button type="button" data-rav="{escape(rav)}">{picture}'
+        cards.append(f'<li data-name="{escape(rav)}" data-series="{series_count}" data-lessons="{lessons_count}">'
+                     f'<button type="button" data-rav="{escape(rav)}">{picture}'
                      f'<span class="who">{escape(rav)}</span>'
-                     f'<span class="count">{texts["series_count"].format(count=count)}</span></button></li>')
+                     f'<span class="count">{texts["rav_counts"].format(series=series_count, lessons=lessons_count)}'
+                     f'</span></button></li>')
     return ''.join(cards)
 
 

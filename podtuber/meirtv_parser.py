@@ -2,11 +2,18 @@ import collections
 import hashlib
 import re
 from datetime import datetime, timezone
-from urllib.parse import urlparse, unquote, quote
+from urllib.parse import quote, unquote, urlparse
 
 from podtuber.audio_info import prefetch
 from podtuber.cache import cache
-from podtuber.lessons import Lesson, SeriesParser, Topic, clean_text, strip_rav_name, topic_of
+from podtuber.lessons import (
+    Lesson,
+    SeriesParser,
+    Topic,
+    clean_text,
+    strip_rav_name,
+    topic_of,
+)
 from podtuber.wordpress import WordPressSite
 
 # its firewall refuses GitHub's servers, so runs there use what a run elsewhere saved (see refresh-snapshots.sh)
@@ -46,9 +53,16 @@ def get_series_parsers(url, rav_name=None, topics=()):
     # where the series is mostly others', the lesson's title says which series it's from
     title_prefix = {}
     if kind == 'rabbis':
+        own_series_lessons = {
+            lesson['id']
+            for series_id, series_lessons in by_series.items()
+            if series_id is not None and len(series_lessons) * 2 > series[series_id]['count']
+            for lesson in series_lessons
+        }
         for series_id, series_lessons in list(by_series.items()):
             if series_id is not None and len(series_lessons) * 2 <= series[series_id]['count']:
                 del by_series[series_id]
+                series_lessons = [lesson for lesson in series_lessons if lesson['id'] not in own_series_lessons]
                 name = clean_text(series[series_id]['name']).strip(' -')
                 if SLOGAN.match(name + ':'):  # a 'series' named by the site's slogan, of lessons of all ravs: none
                     by_series[None] += series_lessons
