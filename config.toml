@@ -153,6 +153,26 @@ image = 'https://zvikaz.github.io/podtuber/yosef-kalner.jpg'
 # podcasts that already exist: listed and searched on the index page, but subscribed to at their own feeds
 # (rav names their rav, for the index page's buttons; source is shown next to their name)
 [[podcasts]]
+rav = 'הרב אשר וייס'
+source = 'אוצר התורה'
+feeds = ['https://rabmeireliyahu.github.io/ravasherweiss/feed.xml']
+# The feed mixes Hebrew, English and Yiddish. Publish local, Hebrew-only feeds split by title topic.
+publish = true
+title_language = 'he'
+title_exclude = 'אידיש|יידיש|Yiddish'
+series = [
+    { name = 'מסרים קצרים', pattern = 'מסר קצר|דברים קצרים|רעיון קצר' },
+    { name = 'מועדים', pattern = 'ראש השנה|יום הכיפורים|יום כיפור|סוכות|שמחת תורה|חנוכה|פורים|פסח|שבועות|תשעה באב|ל״ג בעומר|לג בעומר|ספירת העומר|שלושת השבועות|בין המצרים' },
+    { name = 'שבת', pattern = 'שבת|עירוב|מוקצה|קידוש|הבדלה' },
+    { name = 'תפילה וברכות', pattern = 'תפיל|ברכ|קריאת שמע|קדיש|בית כנסת|בית הכנסת' },
+    { name = 'חושן משפט וממונות', pattern = 'ממון|נזיק|שומר|ריבית|הלווא|אונאה|מקח|אביד|ירוש|שכנים|צוואה|דיין|דיינים|בית דין|דיני רודף' },
+    { name = 'רפואה והלכה', pattern = 'רפוא|חולה|חולים|לידה|יולדת|עובר|פיקוח נפש|השתלת|תרומת איברים|חייל|רימון' },
+    { name = 'כשרות', pattern = 'כשר|בשר|חלב|מאכל|שחיט|תערוב|טריפ|יין נסך' },
+    { name = 'פרשת השבוע', pattern = 'פרשת|^(בראשית|נח|לך לך|וירא|חיי שרה|תולדות|ויצא|וישלח|וישב|מקץ|ויגש|ויחי|שמות|וארא|בא|בשלח|יתרו|משפטים|תרומה|תצוה|כי תשא|ויקהל|פקודי|ויקרא|צו|שמיני|תזריע|מצורע|אחרי מות|קדושים|אמור|בהר|בחוקותי|במדבר|נשא|בהעלותך|שלח|קרח|חקת|בלק|פינחס|מטות|מסעי|דברים|ואתחנן|עקב|ראה|שופטים|כי תצא|כי תבוא|נצבים|וילך|האזינו|וזאת הברכה)[־–—\-:： ]' },
+    { name = 'שיעורים כלליים' },
+]
+
+[[podcasts]]
 rav = 'הרב אורי שרקי'
 source = 'פודקאסט'
 feeds = [

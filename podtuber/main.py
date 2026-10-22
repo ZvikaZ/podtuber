@@ -79,7 +79,11 @@ def read_sources(config, output_dir):
         for url in podcast_config.get('feeds') or [podcast_config['url']]:
             try:
                 if 'feeds' in podcast_config:
-                    found = linked_feed.get_parsers(url, podcast_config['rav'], podcast_config.get('source', ''))
+                    found = linked_feed.get_parsers(url, podcast_config['rav'], podcast_config.get('source', ''),
+                                                    podcast_config.get('title_include'),
+                                                    podcast_config.get('title_exclude'),
+                                                    podcast_config.get('title_language'),
+                                                    podcast_config.get('series', ()))
                 else:
                     found = get_parsers(url, podcast_config)
             except Exception as err:
@@ -87,7 +91,8 @@ def read_sources(config, output_dir):
                 failures[url] = f'{type(err).__name__}: {err}'
                 keep_published_feeds(published.get(url, []), config['general']['base_url'], output_dir)
                 continue
-            published[url] = [feed_id(parser) for parser in found if not hasattr(parser, 'get_linked_feed_url')]
+            published[url] = [feed_id(parser) for parser in found
+                              if podcast_config.get('publish') or not hasattr(parser, 'get_linked_feed_url')]
             parsers += [(parser, podcast_config) for parser in found]
     return parsers, failures
 
@@ -109,7 +114,7 @@ def create_rss(parser, podcast_config, config, output_dir):
     logger.info(f'Handling playlist {parser.get_name()}')
     base_url = config['general']['base_url'].rstrip('/')
     rss_filename = f'{feed_id(parser)}.rss'
-    linked = hasattr(parser, 'get_linked_feed_url')
+    linked = hasattr(parser, 'get_linked_feed_url') and not podcast_config.get('publish')
     rav = podcast_config.get('rav') or parser.get_owner_name()
     source = getattr(parser, 'get_source_name', lambda: '')()
     name = presentation.short_name(parser.get_name(), rav)
