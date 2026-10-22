@@ -46,6 +46,7 @@ class NowPlayingActivity : Activity() {
     private lateinit var play: ImageButton
     private lateinit var speed: TextView
     private lateinit var heard: TextView
+    private val positions by lazy { Positions(getSharedPreferences("positions", MODE_PRIVATE)) }
     private var seeking = false
     private var artworkId = ""
     private val tick = object : Runnable {
@@ -140,7 +141,7 @@ class NowPlayingActivity : Activity() {
         val back = control("↶\n30") { controller?.seekBack() }
         val forward = control("↷\n30") { controller?.seekForward() }
         val next = control(getString(R.string.next_short)) { controller?.seekToNextMediaItem() }
-        heard = action(getString(R.string.mark_heard)) { command("heard"); heard.text = getString(R.string.heard) }
+        heard = action(getString(R.string.mark_heard)) { toggleHeard() }
         val subscribe = action(getString(R.string.subscribe_short)) { command("subscribe") }
 
         content.addView(toolbar)
@@ -188,8 +189,11 @@ class NowPlayingActivity : Activity() {
         play.setImageResource(if (player.isPlaying) R.drawable.ic_pause else R.drawable.ic_play_rtl)
         play.contentDescription = getString(if (player.isPlaying) R.string.pause else R.string.play)
         speed.text = speedText(player.playbackParameters.speed)
+        val id = player.currentMediaItem?.mediaId.orEmpty()
+        val isHeard = id.startsWith("lesson/") && positions.progress(Library.lessonKey(id))?.finished == true
+        heard.text = getString(if (isHeard) R.string.mark_unheard else R.string.mark_heard)
         updateProgress(player)
-        loadArtwork(player.currentMediaItem?.mediaId.orEmpty(), metadata.artworkUri)
+        loadArtwork(id, metadata.artworkUri)
     }
 
     private fun updateProgress(player: Player?) {
@@ -215,6 +219,14 @@ class NowPlayingActivity : Activity() {
 
     private fun command(action: String) {
         controller?.sendCustomCommand(SessionCommand(action, Bundle.EMPTY), Bundle.EMPTY)
+    }
+
+    private fun toggleHeard() {
+        val player = controller ?: return
+        val id = player.currentMediaItem?.mediaId.orEmpty()
+        val isHeard = id.startsWith("lesson/") && positions.progress(Library.lessonKey(id))?.finished == true
+        player.sendCustomCommand(SessionCommand(if (isHeard) "unheard" else "heard", Bundle.EMPTY), Bundle.EMPTY)
+            .addListener({ runOnUiThread { controller?.let(::update) } }, MoreExecutors.directExecutor())
     }
 
     private fun control(text: String, click: () -> Unit) = action(text, click).apply {

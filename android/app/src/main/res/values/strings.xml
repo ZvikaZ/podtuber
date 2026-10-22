@@ -12,6 +12,7 @@
     <string name="speed">מהירות %.1f×</string>
     <string name="next_lesson">השיעור הבא</string>
     <string name="mark_heard">סימון כנשמע</string>
+    <string name="mark_unheard">סימון כלא נשמע</string>
     <string name="remove_continue">הסרה מהמשך</string>
     <string name="subscribe">הוספה לאפליקציית הפודקאסטים</string>
     <string name="subscribe_channel">הוספה לאפליקציית פודקאסטים</string>

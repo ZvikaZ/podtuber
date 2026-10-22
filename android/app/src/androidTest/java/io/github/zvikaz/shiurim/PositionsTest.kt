@@ -55,6 +55,30 @@ class PositionsTest {
 
         assertTrue((1..3).all { positions.progress("series/$it")!!.finished })
         assertEquals(listOf("series/3"), positions.recent())
-        assertFalse(positions.progress("series/2") == null)
+        assertEquals(12_000L, positions.progress("series/2")!!.position)
+    }
+
+    @Test
+    fun heardMarksCanBeUndoneWithoutLosingUsefulProgress() {
+        positions.save("series/1", 12_000, 100_000)
+        positions.finished("series/1")
+        positions.unfinished("series/1")
+        assertEquals(12_000L, positions.progress("series/1")!!.position)
+        assertFalse(positions.progress("series/1")!!.finished)
+
+        positions.save("series/2", 95_000, 100_000)
+        positions.unfinished("series/2")
+        assertEquals(0L, positions.progress("series/2")!!.position)
+        assertFalse(positions.progress("series/2")!!.finished)
+    }
+
+    @Test
+    fun anEntireSeriesCanBeMarkedUnheard() {
+        positions.save("series/2", 12_000, 100_000)
+        positions.finishedSeries("series", 3)
+        positions.unfinishedSeries("series", 3)
+
+        assertTrue((1..3).all { positions.progress("series/$it")?.finished == false })
+        assertEquals(12_000L, positions.progress("series/2")!!.position)
     }
 }

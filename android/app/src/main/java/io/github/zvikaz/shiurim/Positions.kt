@@ -32,8 +32,17 @@ class Positions(private val preferences: SharedPreferences) : Listening {
 
     @Synchronized
     fun finished(lesson: String) {
-        val duration = progress(lesson)?.duration ?: 0
-        preferences.edit().putString("p:$lesson", "$duration|$duration|1").apply()
+        val old = progress(lesson) ?: Progress(0, 0, false)
+        preferences.edit().putString("p:$lesson", "${old.position}|${old.duration}|1").apply()
+        heard(lesson)
+    }
+
+    /** Undo an explicit or automatic heard mark, keeping useful partial progress. */
+    @Synchronized
+    fun unfinished(lesson: String) {
+        val old = progress(lesson) ?: return
+        val position = if (old.duration > 0 && old.position >= old.duration - NEAR_END) 0 else old.position
+        preferences.edit().putString("p:$lesson", "$position|${old.duration}|0").apply()
         heard(lesson)
     }
 
@@ -44,11 +53,25 @@ class Positions(private val preferences: SharedPreferences) : Listening {
         val editor = preferences.edit()
         for (position in 1..lessons) {
             val key = "$series/$position"
-            val duration = progress(key)?.duration ?: 0
-            editor.putString("p:$key", "$duration|$duration|1")
+            val old = progress(key) ?: Progress(0, 0, false)
+            editor.putString("p:$key", "${old.position}|${old.duration}|1")
         }
         editor.apply()
         heard("$series/$lessons")
+    }
+
+    @Synchronized
+    fun unfinishedSeries(series: String, lessons: Int) {
+        if (lessons <= 0) return
+        val editor = preferences.edit()
+        for (number in 1..lessons) {
+            val key = "$series/$number"
+            val old = progress(key) ?: continue
+            val position = if (old.duration > 0 && old.position >= old.duration - NEAR_END) 0 else old.position
+            editor.putString("p:$key", "$position|${old.duration}|0")
+        }
+        editor.apply()
+        heard("$series/1")
     }
 
     /** Remove this series' entry from Continue without changing any lesson's progress or heard state. */

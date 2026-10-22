@@ -58,13 +58,14 @@ class PlaybackService : MediaLibraryService() {
         const val SPEED = "speed"  // the player's speed, to the next one of SPEEDS
         const val SUBSCRIBE = "subscribe"  // a series (or the playing lesson's), to a podcast app
         const val HEARD = "heard"  // a lesson, a series, or the playing lesson
+        const val UNHEARD = "unheard"  // undo a lesson or series' heard mark
         const val DISMISS = "dismiss"  // a lesson's series from Continue, without marking it heard
         const val CHANNEL = "subscribe"
         // with the icons that show them (written by tools/speed_icons.py)
         val SPEEDS = listOf(1.0f to R.drawable.ic_speed_1, 1.2f to R.drawable.ic_speed_1_2,
             1.5f to R.drawable.ic_speed_1_5, 1.8f to R.drawable.ic_speed_1_8, 2.0f to R.drawable.ic_speed_2,
             0.8f to R.drawable.ic_speed_0_8)
-        val COMMANDS = listOf(BACK, FORWARD, NEXT, SPEED, SUBSCRIBE, HEARD, DISMISS)
+        val COMMANDS = listOf(BACK, FORWARD, NEXT, SPEED, SUBSCRIBE, HEARD, UNHEARD, DISMISS)
             .map { SessionCommand(it, Bundle.EMPTY) }
     }
 
@@ -101,7 +102,7 @@ class PlaybackService : MediaLibraryService() {
             .setSessionActivity(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
             .setMediaButtonPreferences(buttons())
-            .setCommandButtonsForMediaItems(listOf(subscribeButton(), heardButton(), dismissButton()))
+            .setCommandButtonsForMediaItems(listOf(subscribeButton(), heardButton(), unheardButton(), dismissButton()))
             .build()
     }
 
@@ -114,6 +115,10 @@ class PlaybackService : MediaLibraryService() {
     private fun buttons(): List<CommandButton> {
         val speed = player.playbackParameters.speed
         return listOf(
+            CommandButton.Builder(if (player.isPlaying) CommandButton.ICON_PAUSE else CommandButton.ICON_PLAY)
+                .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
+                .setDisplayName(getString(if (player.isPlaying) R.string.pause else R.string.play))
+                .setSlots(CommandButton.SLOT_CENTRAL).build(),
             CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30).setSessionCommand(SessionCommand(BACK, Bundle.EMPTY))
                 .setDisplayName(getString(R.string.back_30)).setSlots(CommandButton.SLOT_BACK).build(),
             CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30).setSessionCommand(SessionCommand(FORWARD, Bundle.EMPTY))
@@ -124,7 +129,7 @@ class PlaybackService : MediaLibraryService() {
                 .setDisplayName(getString(R.string.speed, speed)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
             CommandButton.Builder(CommandButton.ICON_NEXT).setSessionCommand(SessionCommand(NEXT, Bundle.EMPTY))
                 .setDisplayName(getString(R.string.next_lesson)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
-            heardButton(),
+            if (currentIsHeard()) unheardButton() else heardButton(),
             subscribeButton(),
         )
     }
@@ -138,6 +143,15 @@ class PlaybackService : MediaLibraryService() {
     private fun heardButton() = CommandButton.Builder(CommandButton.ICON_CHECK_CIRCLE_FILLED)
         .setSessionCommand(SessionCommand(HEARD, Bundle.EMPTY))
         .setDisplayName(getString(R.string.mark_heard)).setSlots(CommandButton.SLOT_OVERFLOW).build()
+
+    private fun unheardButton() = CommandButton.Builder(CommandButton.ICON_CHECK_CIRCLE_UNFILLED)
+        .setSessionCommand(SessionCommand(UNHEARD, Bundle.EMPTY))
+        .setDisplayName(getString(R.string.mark_unheard)).setSlots(CommandButton.SLOT_OVERFLOW).build()
+
+    private fun currentIsHeard(): Boolean {
+        val id = player.currentMediaItem?.mediaId ?: return false
+        return id.startsWith("lesson/") && positions.progress(Library.lessonKey(id))?.finished == true
+    }
 
     private fun dismissButton() = CommandButton.Builder(CommandButton.ICON_QUEUE_REMOVE)
         .setSessionCommand(SessionCommand(DISMISS, Bundle.EMPTY))
@@ -224,6 +238,11 @@ class PlaybackService : MediaLibraryService() {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             handler.removeCallbacks(tick)
             if (isPlaying) handler.postDelayed(tick, SAVE_EVERY) else save()
+            if (::session.isInitialized) session.setMediaButtonPreferences(buttons())
+        }
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            if (::session.isInitialized) session.setMediaButtonPreferences(buttons())
         }
 
         override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) {
@@ -284,23 +303,26 @@ class PlaybackService : MediaLibraryService() {
                         SessionResult(SessionResult.RESULT_SUCCESS)
                     }
                 }
-                HEARD -> {
+                HEARD, UNHEARD -> {
                     val id = args.getString(MediaConstants.EXTRA_KEY_MEDIA_ID) ?: player.currentMediaItem?.mediaId
                     return scope.future(Dispatchers.IO) {
                         val series = when {
                             id?.startsWith("lesson/") == true -> {
-                                positions.finished(Library.lessonKey(id))
+                                if (command.customAction == HEARD) positions.finished(Library.lessonKey(id))
+                                else positions.unfinished(Library.lessonKey(id))
                                 Library.lessonParts(id).first
                             }
                             id?.startsWith("series/") == true -> {
                                 val found = library.seriesOf(id)
                                     ?: return@future SessionResult(SessionError.ERROR_BAD_VALUE)
-                                positions.finishedSeries(found.id, found.lessons)
+                                if (command.customAction == HEARD) positions.finishedSeries(found.id, found.lessons)
+                                else positions.unfinishedSeries(found.id, found.lessons)
                                 found.id
                             }
                             else -> return@future SessionResult(SessionError.ERROR_BAD_VALUE)
                         }
                         notifyProgressChanged(series)
+                        launch(Dispatchers.Main) { session.setMediaButtonPreferences(buttons()) }
                         SessionResult(SessionResult.RESULT_SUCCESS)
                     }
                 }
@@ -412,7 +434,8 @@ class PlaybackService : MediaLibraryService() {
         }
         val commands = buildList {
             if (node.series != null) add(SUBSCRIBE)
-            if (node.id.startsWith("lesson/") || node.id.startsWith("series/")) add(HEARD)
+            if (node.id.startsWith("lesson/") || node.id.startsWith("series/"))
+                add(if (node.progress?.finished == true) UNHEARD else HEARD)
             if (node.dismissible) add(DISMISS)
         }
         val metadata = MediaMetadata.Builder()

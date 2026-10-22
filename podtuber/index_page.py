@@ -84,7 +84,8 @@ TEXTS = {
         'lessons_button': 'השיעורים ({count})',
         'copy': 'העתקת הכתובת',
         'share': 'שיתוף',
-        'footer': ('אתר לא רשמי. השיעורים מ{sources}, וכל הזכויות להם. '
+        'footer': ('אתר ואפליקציה לא רשמיים, שפותחו ומתוחזקים על־ידי צביקה הרמתי. '
+                   'השיעורים מגיעים מ{sources}, וכל הזכויות שמורות לבעלי התוכן. '
                    'הצעות ודיווח על בעיות: <a href="{issues}">כאן</a>.'),
         'script': {
             'close': 'סגירה',
@@ -95,7 +96,9 @@ TEXTS = {
             'continue_title': 'המשך',
             'heard': 'נשמע ✓',
             'mark_heard': 'סימון כנשמע',
+            'mark_unheard': 'סימון כלא נשמע',
             'mark_series_heard': 'סימון כל הסדרה כנשמעה',
+            'mark_series_unheard': 'סימון כל הסדרה כלא נשמעה',
             'remove_continue': 'הסרה מהמשך',
             'share': 'שיתוף',
             'to_series': 'לסדרה',
@@ -436,14 +439,15 @@ function decorateLesson(item, lesson) {
     button = element('button', null, 'btn quiet heard-action');
     button.type = 'button';
     button.onclick = () => {
-      app.markHeard(lesson);
+      if (app.state(lesson) === 'heard') app.markUnheard(lesson);
+      else app.markHeard(lesson);
       decorateLesson(item, lesson);
       showContinue();
     };
     links.append(button);
   }
-  button.textContent = state === 'heard' ? TEXTS.heard : TEXTS.mark_heard;
-  button.disabled = state === 'heard';
+  button.textContent = state === 'heard' ? TEXTS.mark_unheard : TEXTS.mark_heard;
+  button.disabled = false;
   return item;
 }
 // in the Android app (android/), whose screen is this page: a lesson is played by its player (as in the car, where
@@ -525,11 +529,12 @@ async function toggleEpisodes(li, open) {
       heard.type = 'button';
       const update = () => {
         const complete = [...list.children].every(item => app.state(item.dataset.lessonKey) === 'heard');
-        heard.textContent = complete ? TEXTS.heard : TEXTS.mark_series_heard;
-        heard.disabled = complete;
+        heard.textContent = complete ? TEXTS.mark_series_unheard : TEXTS.mark_series_heard;
       };
       heard.onclick = () => {
-        app.markSeriesHeard(li.id, episodes.length);
+        const complete = [...list.children].every(item => app.state(item.dataset.lessonKey) === 'heard');
+        if (complete) app.markSeriesUnheard(li.id, episodes.length);
+        else app.markSeriesHeard(li.id, episodes.length);
         for (const item of list.children) decorateLesson(item, item.dataset.lessonKey);
         update();
         showContinue();

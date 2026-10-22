@@ -181,6 +181,9 @@ class Library(private val source: Source, private val listening: Listening, priv
         "series/${series.id}", series.name,
         listOf(labels.lessonsCount(series.lessons), series.years).filter { it.isNotEmpty() }.joinToString(" · "),
         browsable = true, art = art(series), series = series.id,
+        progress = (1..series.lessons).count { listening.progress("${series.id}/$it")?.finished == true }.let { heard ->
+            Progress(heard.toLong(), series.lessons.toLong(), heard == series.lessons)
+        },
     )
 
     /** a series' artwork: its own, if the site has it (a podcast published elsewhere has its own elsewhere), or its rav's */

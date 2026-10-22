@@ -259,9 +259,18 @@ class MainActivity : Activity() {
         fun markHeard(lesson: String) = lessonKey(lesson)?.let(positions::finished) ?: Unit
 
         @JavascriptInterface
+        fun markUnheard(lesson: String) = lessonKey(lesson)?.let(positions::unfinished) ?: Unit
+
+        @JavascriptInterface
         fun markSeriesHeard(series: String, lessonCount: Int) {
             if (series.isNotBlank() && '/' !in series && lessonCount in 1..10_000)
                 positions.finishedSeries(series, lessonCount)
+        }
+
+        @JavascriptInterface
+        fun markSeriesUnheard(series: String, lessonCount: Int) {
+            if (series.isNotBlank() && '/' !in series && lessonCount in 1..10_000)
+                positions.unfinishedSeries(series, lessonCount)
         }
 
         @JavascriptInterface

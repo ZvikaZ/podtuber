@@ -96,8 +96,10 @@ class CarPlayerTest {
 
         // what the car is given: our buttons for back and forward, in their slots, and no "previous"
         println("car state: $state, extras ${state.extras?.keySet()?.associateWith { state.extras!!.get(it) }}")
-        assertEquals(listOf("back", "forward", "speed", "next", "heard", "subscribe"),
+        val completionAction = state.customActions.single { it.action == "heard" || it.action == "unheard" }.action
+        assertEquals(listOf("back", "forward", "speed", "next", completionAction, "subscribe"),
             state.customActions.map { it.action })
+        assertTrue(state.actions and PlaybackState.ACTION_PLAY_PAUSE != 0L)
         assertEquals(0L, state.actions and PlaybackState.ACTION_SKIP_TO_PREVIOUS)
         assertEquals(0L, state.actions and PlaybackState.ACTION_SKIP_TO_NEXT)
         assertFalse(state.extras!!.getBoolean("android.media.playback.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_PREVIOUS", true))
@@ -129,5 +131,11 @@ class CarPlayerTest {
         }
         assertEquals(speeds.keys, seen.toSet())
         assertEquals(first, seen.last())
+
+        controller.transportControls.sendCustomAction(action(state, completionAction), null)
+        val opposite = if (completionAction == "heard") "unheard" else "heard"
+        state = waitFor("heard button to toggle") { current -> current.customActions.any { it.action == opposite } }
+        controller.transportControls.sendCustomAction(action(state, opposite), null)
+        waitFor("heard button to toggle back") { current -> current.customActions.any { it.action == completionAction } }
     }
 }

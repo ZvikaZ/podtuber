@@ -120,6 +120,19 @@ class LibraryTest {
     }
 
     @Test
+    fun `a series reports aggregate heard progress`() {
+        val listening = FakeListening(mutableMapOf(
+            "a/1" to Progress(10, 10, true),
+            "a/2" to Progress(5, 10, false),
+            "a/3" to Progress(10, 10, true),
+        ))
+        val progress = library(listening).node("series/a")!!.progress!!
+        assertEquals(2L, progress.position)
+        assertEquals(3L, progress.duration)
+        assertEquals(false, progress.finished)
+    }
+
+    @Test
     fun `voice requests play a series on from where it was left, a rav's newest, or what was heard last`() {
         val listening = FakeListening(mutableMapOf("a/1" to Progress(3_000_000, 3_000_000, true)), mutableListOf("a/1"))
         val library = library(listening)
