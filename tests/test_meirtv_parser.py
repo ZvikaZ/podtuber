@@ -32,6 +32,35 @@ class MeirTvParserTest(unittest.TestCase):
         self.assertEqual(['meirtv-10', 'meirtv-rabbi-30-other'], [parser.feed_id for parser in parsers])
         self.assertEqual([[1], [2]], [[lesson.order for lesson in parser.lessons] for parser in parsers])
 
+    @patch('podtuber.meirtv_parser.prefetch')
+    @patch('podtuber.meirtv_parser.SITE')
+    def test_splits_a_series_by_the_words_its_titles_name(self, site, _prefetch):
+        titles = {1: 'האם מותר לטלטל בשבת?', 2: 'מה מברכים על "קרמבו"?', 3: 'דין מוקצה', 4: 'מהי אמונה?'}
+        lessons = [{'id': id, 'date_gmt': f'2026-01-0{id}T00:00:00', 'link': f'lesson-{id}',
+                    'title': {'rendered': title}, 'shiurim-series': [10], 'rabbis': [30]}
+                   for id, title in titles.items()]
+        site.get_term.return_value = {'id': 30, 'link': 'rabbi'}
+        site.get_all.return_value = lessons
+        site.get_terms.side_effect = [
+            [{'id': 10, 'count': 4, 'name': 'שאלות ותשובות -', 'link': 'series-10'}],
+            [{'id': 30, 'name': 'הרב שלמה אבינר'}],
+        ]
+        site.find_audio.side_effect = lambda _section, found, _finder: [
+            lesson.update(audio='https://example.com/lesson.mp3') for lesson in found
+        ]
+        split = {'series': 'שאלות ותשובות', 'parts': [{'name': 'שבת', 'words': ['שבת', 'מוקצה']},
+                                                       {'name': 'ברכות', 'words': ['ברכה', 'מברכים']},
+                                                       {'name': 'שונות'}]}
+
+        with patch('podtuber.meirtv_parser.lesson_audio_url',
+                   side_effect=lambda lesson: lesson.get('audio')):
+            parsers = get_series_parsers('https://meirtv.com/rabbis/example/', splits=[split])
+
+        self.assertEqual(['שאלות ותשובות - שבת', 'שאלות ותשובות - ברכות', 'שאלות ותשובות - שונות'],
+                         [parser.name for parser in parsers])
+        self.assertEqual([[1, 3], [2], [4]], [sorted(lesson.order for lesson in parser.lessons) for parser in parsers])
+        self.assertTrue(all(parser.feed_id.startswith('meirtv-10-part-') for parser in parsers))
+
 
 if __name__ == '__main__':
     unittest.main()

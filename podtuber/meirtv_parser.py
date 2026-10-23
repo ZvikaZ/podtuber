@@ -32,12 +32,15 @@ SLOGAN = re.compile(r'^ערוץ מאיר\s*-\s*מכון מאיר\s*\|\s*מיטב
 MP3_URL = re.compile(r'https?://mp3\.meirtv\.co\.il/[^"\'<>]+?\.mp3', re.IGNORECASE)
 
 
-def get_series_parsers(url, rav_name=None, topics=()):
+def get_series_parsers(url, rav_name=None, topics=(), splits=()):
     """
     https://meirtv.com/rabbis/<rabbi>/ is a podcast per series of that rav, and his talks in study days (series of
     talks by many rabbis) and his other lessons as two more; https://meirtv.com/shiurim-series/<series>/ is that
     series alone. rav_name, when given, is how the rav is named, rather than as the site names him; and topics, of
     his other lessons, are podcasts of their own, of the lessons whose titles name them (the first one named).
+    splits are series too big for one podcast: {'series': its name, 'parts': [{'name': ..., 'words': [...]}, ...]},
+    a podcast per part, of the lessons whose titles name one of its words (the first part named); a part with no
+    words is the rest.
     """
     kind, slug = unquote(urlparse(url).path).strip('/').split('/')[:2]
     if kind not in ('rabbis', 'shiurim-series'):
@@ -72,6 +75,8 @@ def get_series_parsers(url, rav_name=None, topics=()):
                 title_prefix.update({lesson['id']: name for lesson in series_lessons})
         for lesson in by_series.pop(None, []):  # his other lessons, by the topic their title names, if any
             by_series[topic_of(lesson_title(lesson), topics)] += [lesson]
+    for configured in splits:
+        split(by_series, series, configured)
 
     SITE.find_audio(CACHE_SECTION, [lesson for series_lessons in by_series.values() for lesson in series_lessons],
                     audio_in_page)
@@ -93,6 +98,11 @@ def get_series_parsers(url, rav_name=None, topics=()):
             name, feed_id, website = series_id.name, f'meirtv-rabbi-{term["id"]}-topic-{topic_id}', term['link']
         elif series_id == STUDY_DAYS:
             name, feed_id, website = STUDY_DAYS, f'meirtv-rabbi-{term["id"]}-study-days', term['link']
+        elif isinstance(series_id, tuple):  # a part of a series too big for one podcast
+            series_id, part = series_id
+            part_id = hashlib.sha1(part.encode()).hexdigest()[:8]
+            name = f'{strip_rav_name(clean_text(series[series_id]["name"]), rav["name"]).strip(" -")} - {part}'
+            feed_id, website = f'meirtv-{series_id}-part-{part_id}', series[series_id]['link']
         else:
             name = strip_rav_name(clean_text(series[series_id]['name']), rav['name'])
             feed_id, website = f'meirtv-{series_id}', series[series_id]['link']
@@ -115,6 +125,19 @@ def get_series_parsers(url, rav_name=None, topics=()):
             missing=len(series_lessons) - len(with_audio),
         ))
     return parsers
+
+
+def split(by_series, series, configured):
+    """moves the lessons of the series named configured['series'] to a podcast per part, as its titles name them"""
+    for series_id in [s for s in by_series if s in series and series_name(series[s]) == configured['series']]:
+        for lesson in by_series.pop(series_id):
+            part = next((part['name'] for part in configured['parts']
+                         if 'words' not in part or topic_of(lesson_title(lesson), [part['words']])), None)
+            by_series[(series_id, part) if part else series_id].append(lesson)
+
+
+def series_name(term):
+    return clean_text(term['name']).strip(' -')
 
 
 def lesson_title(lesson):

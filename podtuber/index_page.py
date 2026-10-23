@@ -32,7 +32,7 @@ FAVICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect wid
 # holidays in the order of the year (from Elul), for listing a rav's holiday podcasts
 HOLIDAYS = ['אלול', 'ראש השנה', 'יום כיפור', 'סוכות', 'חנוכה', 'עשרה בטבת', 'ט"ו בשבט', 'שובבים', 'פורים', 'פסח',
             'ספירת העומר', 'יום השואה', 'יום הזיכרון', 'יום העצמאות', 'ל"ג בעומר', 'יום ירושלים', 'שבועות', 'תשעה באב']
-GENERAL = re.compile(r'^(כללי|שיעורים נוספים|ימי עיון|חגים|שו"ת)(?![א-ת])')
+GENERAL = re.compile(r'^(כללי|שיעורים נוספים|ימי עיון|חגים|שו"ת|שאלות ותשובות)(?![א-ת])')
 
 TEXTS = {
     'he': {
