@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Some sites (Meir TV) refuse GitHub's servers, so the daily GitHub run reads them from snapshots instead. This
+# Some sites (Meir TV) refuse GitHub's servers, so GitHub's runs (every 3 hours) read them from snapshots instead. This
 # refreshes those snapshots, from a computer the sites do serve, and pushes them to the "snapshots" branch, as its
-# one commit, replacing the last: so that old snapshots don't pile up in the repository's history. The next daily
-# run publishes them (or "Run workflow", in the repository's Actions tab, publishes them now).
+# one commit, replacing the last: so that old snapshots don't pile up in the repository's history. The next run
+# publishes them (or "Run workflow", in the repository's Actions tab, publishes them now).
 set -euo pipefail
 cd "$(dirname "$0")"
 uv run podtuber --snapshot
@@ -14,4 +14,4 @@ tree=$(GIT_INDEX_FILE="$index" git write-tree)
 rm -f "$index"
 commit=$(git commit-tree "$tree" -m "Snapshots of the sites that refuse GitHub's servers")
 git push --force --quiet origin "$commit:refs/heads/snapshots"
-echo "Pushed the snapshots; the next daily run publishes them"
+echo "Pushed the snapshots; the next run publishes them"

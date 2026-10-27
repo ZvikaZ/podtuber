@@ -2,8 +2,9 @@ name: Publish podcasts
 
 on:
   schedule:
-    - cron: '17 3 * * *'  # daily, so new lessons show up in the feeds
-    - cron: '17 10 * * *'  # and after the Meir TV snapshot, refreshed daily at 11:30 Israel time
+    # every 3 hours, so new lessons show up soon (GitHub often starts these an hour or more late); Meir TV's
+    # snapshot is refreshed every 3 hours too, while the computer that refreshes it is on
+    - cron: '17 */3 * * *'
   push:
     branches: [master]
   workflow_dispatch:
@@ -27,19 +28,35 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv run podtuber
-      # the Android app (android/), built and published with the site (shiurim.apk); the feeds are published even
-      # if it fails to build
+      # the Android app (android/), published with the site (shiurim.apk, and shiurim.apk.tree: the git tree of
+      # android/ it was built from). It's built only when android/ has changed since; the app published last is
+      # kept until then, and if it fails to build (the feeds are published either way)
+      - name: Get the app published last
+        id: app
+        run: |
+          base=$(python3 -c "import tomllib; print(tomllib.load(open('config.toml', 'rb'))['general']['base_url'].rstrip('/'))")
+          tree=$(git rev-parse HEAD:android)
+          if curl -fsS "$base/shiurim.apk.tree" -o "$RUNNER_TEMP/built.tree" && curl -fsS "$base/shiurim.apk" -o public/shiurim.apk; then
+            cp "$RUNNER_TEMP/built.tree" public/shiurim.apk.tree
+          else
+            rm -f public/shiurim.apk "$RUNNER_TEMP/built.tree"
+          fi
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+          echo "changed=$([ "$(cat "$RUNNER_TEMP/built.tree" 2>/dev/null)" = "$tree" ] && echo false || echo true)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@v4
+        if: steps.app.outputs.changed == 'true'
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
       - name: Build the Android app
+        if: steps.app.outputs.changed == 'true'
         continue-on-error: true
         working-directory: android
         run: |
           ./gradlew --no-daemon assembleDebug
           cp app/build/outputs/apk/debug/app-debug.apk ../public/shiurim.apk
+          echo "${{ steps.app.outputs.tree }}" > ../public/shiurim.apk.tree
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
