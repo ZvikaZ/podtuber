@@ -132,9 +132,14 @@ class CarPlayerTest {
         assertEquals(speeds.keys, seen.toSet())
         assertEquals(first, seen.last())
 
+        // the heard button's icon shows whether the lesson was heard: a filled check once it was, unfilled before
+        val heardIcon = mapOf("heard" to androidx.media3.session.R.drawable.media3_icon_check_circle_unfilled,
+            "unheard" to androidx.media3.session.R.drawable.media3_icon_check_circle_filled)
+        assertEquals(heardIcon.getValue(completionAction), action(state, completionAction).icon)
         controller.transportControls.sendCustomAction(action(state, completionAction), null)
         val opposite = if (completionAction == "heard") "unheard" else "heard"
         state = waitFor("heard button to toggle") { current -> current.customActions.any { it.action == opposite } }
+        assertEquals(heardIcon.getValue(opposite), action(state, opposite).icon)
         controller.transportControls.sendCustomAction(action(state, opposite), null)
         waitFor("heard button to toggle back") { current -> current.customActions.any { it.action == completionAction } }
     }

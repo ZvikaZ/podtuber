@@ -68,7 +68,8 @@ TEXTS = {
         'series_count': '{count} סדרות',
         'rav_counts': '{series} סדרות · {lessons} שיעורים',
         'new_title': 'שיעורים חדשים',
-        'scope': 'סינון לפי {rav} – ביטול',
+        'all_ravs': 'כל הרבנים',
+        'rav_filter_label': 'חיפוש אצל רב',
         'filter': 'חיפוש סדרה או שיעור…',
         'filter_label': 'חיפוש סדרות ושיעורים',
         'whole_words': 'מילים שלמות בלבד',
@@ -178,8 +179,11 @@ PAGE = """<!DOCTYPE html>
   .option { display: inline-flex; align-items: center; gap: .4rem; margin-top: .35rem; color: var(--muted);
             font-size: .9rem; cursor: pointer; min-height: 32px; }
   .option input { width: 1.1rem; height: 1.1rem; }
-  #scope { margin-inline-start: 1rem; padding: .2rem .7rem; border-radius: 99px; min-height: 32px; font-size: .85rem;
-           text-decoration: none; background: var(--accent); color: var(--on-accent); }
+  .search-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .search-row input[type=search] { flex: 1 1 12rem; width: auto; }
+  #rav-filter { flex: 0 1 auto; max-width: 100%; padding: 0 .6rem; font: inherit; color: inherit; background: var(--bg);
+                border: 1px solid var(--muted); border-radius: .5rem; min-height: 44px; }
+  #rav-filter.on { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
   .ravs { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.75rem, 1fr)); gap: .5rem; padding: 0;
           list-style: none; }
   .ravs button { width: 100%; background: transparent; display: flex; flex-direction: column; align-items: center; gap: .25rem; padding: .6rem .25rem;
@@ -263,9 +267,11 @@ PAGE = """<!DOCTYPE html>
 <details class="howto" id="howto"><summary>%HOWTO%</summary>%HOWTO_BODY%</details>
 </header>
 <div class="bar">
+<div class="search-row">
 <input type="search" id="search" placeholder="%FILTER%" aria-label="%FILTER_LABEL%" autocomplete="off">
+<select id="rav-filter" aria-label="%RAV_FILTER_LABEL%"><option value="">%ALL_RAVS%</option>%RAV_OPTIONS%</select>
+</div>
 <label class="option"><input type="checkbox" id="whole-words"> %WHOLE_WORDS%</label>
-<button type="button" id="scope" hidden></button>
 </div>
 <main id="content">
 <p id="status" class="note" aria-live="polite"></p>
@@ -374,6 +380,13 @@ function matcher(query) {
   const words = queryWords(query);
   return text => { const normalized = normalize(text); return words.every(word => found(normalized, word)); };
 }
+// what a lesson is searched by: its title and description, and its series' name and rav ('אבינר שבת')
+const lessonText = ([, title, text], [, seriesName, rav]) => `${title} ${text} ${seriesName} ${rav}`;
+// the search box, for the address's query: as typed, if that's the query give or take spaces (a space typed before
+// the next word is kept)
+const boxValue = (typed, query) => typed.trim() === query ? typed : query;
+// whether a lesson is found: by the words searched for, among the lessons of the rav chosen (if one is)
+const lessonFound = (lesson, series, matches, rav) => (!rav || series[2] === rav) && matches(lessonText(lesson, series));
 // the text, with the words searched for marked (as typed, gershayim and niqqud aside)
 function highlighted(text, query) {
   const node = document.createElement('span');
@@ -573,8 +586,8 @@ for (const button of document.querySelectorAll('button[data-episodes]'))
 // alone (#feed, or #feed/n for one of its lessons); the address is kept up to date, so any view can be shared,
 // and Back returns to the one before
 let rav = '';
-const scope = $('scope');  // shown while a rav is chosen: his series, and searching only them; tapped, all ravs
-scope.onclick = () => { rav = ''; typed(true); };
+const ravFilter = $('rav-filter');  // the rav chosen: his series, and searching only them; or all ravs
+ravFilter.onchange = () => { rav = ravFilter.value; typed(true); };
 for (const card of document.querySelectorAll('.ravs button'))
   card.onclick = () => { rav = card.dataset.rav; typed(true); window.scrollTo({top: 0}); };
 const ravList = document.querySelector('.ravs');
@@ -700,8 +713,7 @@ async function showResults(query) {
   await loadLessons();
   if (input.value.trim() !== query) return;  // typed on in the meantime
   const LIMIT = 100;
-  const all = lessons.lessons.filter(([series, title, text]) =>
-    (!rav || lessons.series[series][2] === rav) && matches(title + ' ' + text));
+  const all = lessons.lessons.filter(lesson => lessonFound(lesson, lessons.series[lesson[0]], matches, rav));
   $('lessons-found').textContent = all.length ? TEXTS.found_lessons.replace('{count}', all.length) : '';
   $('lessons').replaceChildren(...all.slice(0, LIMIT).map(lesson => lessonResult(lesson, query)));
   $('lessons-more').textContent = all.length > LIMIT ? TEXTS.more.replace('{count}', all.length - LIMIT) : '';
@@ -721,11 +733,11 @@ function typed(push) {  // choosing a rav, or leaving him, is a new page in the 
 
 async function show() {
   const url = new URL(location.href);
-  input.value = url.searchParams.get('q') || '';
+  input.value = boxValue(input.value, url.searchParams.get('q') || '');
   rav = url.searchParams.get('rav') || '';
   wholeWords.checked = url.searchParams.get('w') === '1';
-  scope.hidden = !rav;
-  scope.textContent = TEXTS.scope.replace('{rav}', rav);
+  ravFilter.value = rav;
+  ravFilter.classList.toggle('on', !!rav);
   $('status').textContent = '';
   for (const li of document.querySelectorAll('li.chosen')) li.classList.remove('chosen');
   const [feedId, position] = decodeURIComponent(url.hash.slice(1)).split('/');
@@ -848,6 +860,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         'FILTER': texts['filter'], 'FILTER_LABEL': texts['filter_label'], 'WHOLE_WORDS': texts['whole_words'],
         'CONTINUE_TITLE': texts['script']['continue_title'],
         'RAVS_TITLE': texts['ravs_title'], 'RAV_CARDS': rav_cards(ravs, texts),
+        'ALL_RAVS': texts['all_ravs'], 'RAV_FILTER_LABEL': texts['rav_filter_label'], 'RAV_OPTIONS': rav_options(ravs),
         'RAV_SORT': texts['rav_sort'], 'RAV_SORT_NAME': texts['rav_sort_name'],
         'RAV_SORT_SERIES': texts['rav_sort_series'], 'RAV_SORT_LESSONS': texts['rav_sort_lessons'],
         'NEW_TITLE': texts['new_title'], 'NEW': new_lessons(newest, texts),
@@ -855,7 +868,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         'SORT_SIZE': texts['sort_size'],
         'ITEMS': '\n'.join(items),
         'FOOTER': texts['footer'].format(sources=', '.join(sources), issues=ISSUES_URL),
-        'TEXTS': json.dumps({**texts['script'], 'groups': texts['groups'], 'scope': texts['scope']}, ensure_ascii=False),
+        'TEXTS': json.dumps({**texts['script'], 'groups': texts['groups']}, ensure_ascii=False),
         'LESSONS_URL': json.dumps(lessons_file),
         'SCRIPT': SCRIPT,
     }
@@ -931,6 +944,12 @@ def rav_cards(ravs, texts):
                      f'<span class="count">{texts["rav_counts"].format(series=series_count, lessons=lessons_count)}'
                      f'</span></button></li>')
     return ''.join(cards)
+
+
+def rav_options(ravs):
+    """the search's choice of rav: each rav, by surname"""
+    names = sorted((rav for rav, *_ in ravs), key=lambda name: (name.split()[-1], name))
+    return ''.join(f'<option value="{escape(name)}">{escape(name)}</option>' for name in names)
 
 
 def new_lessons(newest, texts):

@@ -102,7 +102,6 @@ class MainActivity : Activity() {
             .buildAsync()
         controllerFuture.addListener({
             val controller = controller ?: return@addListener
-            restoreLastLesson(controller)
             updateMiniPlayer(controller)
             controller.addListener(object : Player.Listener {
                 override fun onEvents(player: Player, events: Player.Events) = updateMiniPlayer(player)
@@ -185,16 +184,6 @@ class MainActivity : Activity() {
             addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
             setOnClickListener { startActivity(Intent(this@MainActivity, NowPlayingActivity::class.java)) }
         }
-    }
-
-    private fun restoreLastLesson(player: MediaController) {
-        if (player.mediaItemCount != 0) return
-        val lesson = positions.recent().firstOrNull() ?: return
-        val series = lesson.substringBeforeLast('/', "")
-        val position = lesson.substringAfterLast('/', "").toIntOrNull() ?: return
-        if (series.isEmpty() || position <= 0) return
-        player.setMediaItem(MediaItem.Builder().setMediaId(Library.lessonId(series, position)).build())
-        player.prepare()
     }
 
     private fun updateMiniPlayer(player: Player?) {

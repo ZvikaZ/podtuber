@@ -81,4 +81,27 @@ class PositionsTest {
         assertTrue((1..3).all { positions.progress("series/$it")?.finished == false })
         assertEquals(12_000L, positions.progress("series/2")!!.position)
     }
+
+    @Test
+    fun aLessonsAudioIsKeptWithItsProgress() {
+        positions.save("series/1", 12_000, 100_000, "https://x/1.mp3")
+        assertEquals("https://x/1.mp3", positions.progress("series/1")!!.url)
+        positions.finished("series/1")
+        assertEquals("https://x/1.mp3", positions.progress("series/1")!!.url)
+        positions.unfinished("series/1")
+        assertEquals(Progress(12_000, 100_000, false, "https://x/1.mp3"), positions.progress("series/1"))
+
+        // kept before the audio was: still read
+        preferences.edit().putString("p:series/2", "5000|100000|0").commit()
+        assertEquals(Progress(5_000, 100_000, false, null), positions.progress("series/2"))
+    }
+
+    @Test
+    fun anotherLessonOfTheSameNumberDoesNotInheritHeard() {
+        // the series was renumbered: number 1 is now another lesson
+        positions.save("series/1", 99_000, 100_000, "https://x/old.mp3")
+        assertTrue(positions.progress("series/1")!!.finished)
+        positions.save("series/1", 3_000, 100_000, "https://x/new.mp3")
+        assertEquals(Progress(3_000, 100_000, false, "https://x/new.mp3"), positions.progress("series/1"))
+    }
 }

@@ -2,8 +2,11 @@ package io.github.zvikaz.shiurim
 
 import android.content.SharedPreferences
 
-/** where a lesson was stopped, of how long it is (0 if not known yet), and whether it was heard to its end */
-data class Progress(val position: Long, val duration: Long, val finished: Boolean) {
+/**
+ * where a lesson was stopped, of how long it is (0 if not known yet), and whether it was heard to its end; and its
+ * audio's address (null if kept before it was), which tells whether it's still the lesson of that number
+ */
+data class Progress(val position: Long, val duration: Long, val finished: Boolean, val url: String? = null) {
     val fraction get() = if (finished) 1.0 else if (duration > 0) position.toDouble() / duration else 0.0
 }
 
@@ -18,22 +21,26 @@ class Positions(private val preferences: SharedPreferences) : Listening {
         const val NEAR_END = 5_000L  // tolerate only player/timing imprecision right at the end
     }
 
-    override fun progress(lesson: String): Progress? = preferences.getString("p:$lesson", null)?.split('|')?.let {
-        Progress(it[0].toLong(), it[1].toLong(), it[2] == "1")
+    override fun progress(lesson: String): Progress? = preferences.getString("p:$lesson", null)?.split('|', limit = 4)?.let {
+        Progress(it[0].toLong(), it[1].toLong(), it[2] == "1", it.getOrNull(3)?.ifEmpty { null })
     }
 
+    private fun stored(progress: Progress) =
+        "${progress.position}|${progress.duration}|${if (progress.finished) 1 else 0}|${progress.url ?: ""}"
+
     @Synchronized
-    fun save(lesson: String, position: Long, duration: Long) {
+    fun save(lesson: String, position: Long, duration: Long, url: String? = null) {
+        val old = progress(lesson)?.takeIf { url == null || it.url == null || it.url == url }  // (not another's)
         // "Heard" is durable: replaying the beginning of a finished lesson must not make it unfinished again.
-        val finished = progress(lesson)?.finished == true || duration > 0 && position >= duration - NEAR_END
-        preferences.edit().putString("p:$lesson", "$position|$duration|${if (finished) 1 else 0}").apply()
+        val finished = old?.finished == true || duration > 0 && position >= duration - NEAR_END
+        preferences.edit().putString("p:$lesson", stored(Progress(position, duration, finished, url ?: old?.url))).apply()
         heard(lesson)
     }
 
     @Synchronized
-    fun finished(lesson: String) {
-        val old = progress(lesson) ?: Progress(0, 0, false)
-        preferences.edit().putString("p:$lesson", "${old.position}|${old.duration}|1").apply()
+    fun finished(lesson: String, url: String? = null) {
+        val old = progress(lesson)?.takeIf { url == null || it.url == null || it.url == url } ?: Progress(0, 0, false)
+        preferences.edit().putString("p:$lesson", stored(old.copy(finished = true, url = url ?: old.url))).apply()
         heard(lesson)
     }
 
@@ -42,7 +49,7 @@ class Positions(private val preferences: SharedPreferences) : Listening {
     fun unfinished(lesson: String) {
         val old = progress(lesson) ?: return
         val position = if (old.duration > 0 && old.position >= old.duration - NEAR_END) 0 else old.position
-        preferences.edit().putString("p:$lesson", "$position|${old.duration}|0").apply()
+        preferences.edit().putString("p:$lesson", stored(old.copy(position = position, finished = false))).apply()
         heard(lesson)
     }
 
@@ -54,7 +61,7 @@ class Positions(private val preferences: SharedPreferences) : Listening {
         for (position in 1..lessons) {
             val key = "$series/$position"
             val old = progress(key) ?: Progress(0, 0, false)
-            editor.putString("p:$key", "${old.position}|${old.duration}|1")
+            editor.putString("p:$key", stored(old.copy(finished = true)))
         }
         editor.apply()
         heard("$series/$lessons")
@@ -68,7 +75,7 @@ class Positions(private val preferences: SharedPreferences) : Listening {
             val key = "$series/$number"
             val old = progress(key) ?: continue
             val position = if (old.duration > 0 && old.position >= old.duration - NEAR_END) 0 else old.position
-            editor.putString("p:$key", "$position|${old.duration}|0")
+            editor.putString("p:$key", stored(old.copy(position = position, finished = false)))
         }
         editor.apply()
         heard("$series/1")

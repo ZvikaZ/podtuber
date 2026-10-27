@@ -104,6 +104,22 @@ class PlaybackService : MediaLibraryService() {
             .setMediaButtonPreferences(buttons())
             .setCommandButtonsForMediaItems(listOf(subscribeButton(), heardButton(), unheardButton(), dismissButton()))
             .build()
+        loadContinue()
+    }
+
+    /**
+     * what Continue would play, loaded (paused) as the service starts: so that the car, connecting while the app
+     * isn't in use, has a lesson to show and resume (with nothing loaded, it has no play button to show)
+     */
+    private fun loadContinue() {
+        scope.launch(Dispatchers.IO) {
+            val queue = runCatching { library.play("") }.getOrNull() ?: return@launch
+            launch(Dispatchers.Main) {
+                if (player.mediaItemCount != 0) return@launch  // asked to play something meanwhile
+                player.setMediaItems(queue.lessons.map(::item), queue.start, queue.position)
+                player.prepare()
+            }
+        }
     }
 
     private val settings by lazy { getSharedPreferences("settings", MODE_PRIVATE) }
@@ -114,11 +130,13 @@ class PlaybackService : MediaLibraryService() {
      */
     private fun buttons(): List<CommandButton> {
         val speed = player.playbackParameters.speed
+        val playPause = CommandButton.Builder(if (player.isPlaying) CommandButton.ICON_PAUSE else CommandButton.ICON_PLAY)
+            .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
+            .setDisplayName(getString(if (player.isPlaying) R.string.pause else R.string.play))
+            .setSlots(CommandButton.SLOT_CENTRAL).build()
+        if (player.currentMediaItem == null) return listOf(playPause)  // nothing to skip in, mark or subscribe to
         return listOf(
-            CommandButton.Builder(if (player.isPlaying) CommandButton.ICON_PAUSE else CommandButton.ICON_PLAY)
-                .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
-                .setDisplayName(getString(if (player.isPlaying) R.string.pause else R.string.play))
-                .setSlots(CommandButton.SLOT_CENTRAL).build(),
+            playPause,
             CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30).setSessionCommand(SessionCommand(BACK, Bundle.EMPTY))
                 .setDisplayName(getString(R.string.back_30)).setSlots(CommandButton.SLOT_BACK).build(),
             CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30).setSessionCommand(SessionCommand(FORWARD, Bundle.EMPTY))
@@ -140,11 +158,12 @@ class PlaybackService : MediaLibraryService() {
         .setSessionCommand(SessionCommand(SUBSCRIBE, Bundle.EMPTY))
         .setDisplayName(getString(R.string.subscribe)).setSlots(CommandButton.SLOT_OVERFLOW).build()
 
-    private fun heardButton() = CommandButton.Builder(CommandButton.ICON_CHECK_CIRCLE_FILLED)
+    // the icon shows the lesson's state, as players do (unfilled: not heard yet), and its name what a tap does
+    private fun heardButton() = CommandButton.Builder(CommandButton.ICON_CHECK_CIRCLE_UNFILLED)
         .setSessionCommand(SessionCommand(HEARD, Bundle.EMPTY))
         .setDisplayName(getString(R.string.mark_heard)).setSlots(CommandButton.SLOT_OVERFLOW).build()
 
-    private fun unheardButton() = CommandButton.Builder(CommandButton.ICON_CHECK_CIRCLE_UNFILLED)
+    private fun unheardButton() = CommandButton.Builder(CommandButton.ICON_CHECK_CIRCLE_FILLED)
         .setSessionCommand(SessionCommand(UNHEARD, Bundle.EMPTY))
         .setDisplayName(getString(R.string.mark_unheard)).setSlots(CommandButton.SLOT_OVERFLOW).build()
 
@@ -205,16 +224,18 @@ class PlaybackService : MediaLibraryService() {
         if (id.startsWith("lesson/") && player.currentPosition > 0) {
             val key = Library.lessonKey(id)
             val wasFinished = positions.progress(key)?.finished == true
-            positions.save(key, player.currentPosition, player.duration.coerceAtLeast(0))
+            positions.save(key, player.currentPosition, player.duration.coerceAtLeast(0), urlOf(player.currentMediaItem))
             if (!wasFinished && positions.progress(key)?.finished == true)
                 notifyProgressChanged(Library.lessonParts(id).first)
         }
     }
 
-    private fun finish(id: String) {
-        positions.finished(Library.lessonKey(id))
-        notifyProgressChanged(Library.lessonParts(id).first)
+    private fun finish(item: MediaItem) {
+        positions.finished(Library.lessonKey(item.mediaId), urlOf(item))
+        notifyProgressChanged(Library.lessonParts(item.mediaId).first)
     }
+
+    private fun urlOf(item: MediaItem?) = item?.localConfiguration?.uri?.toString()
 
     private fun notifyProgressChanged(seriesId: String) {
         scope.launch(Dispatchers.IO) {
@@ -248,12 +269,12 @@ class PlaybackService : MediaLibraryService() {
         override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) {
             // played to its end, on to the next lesson: the one before was heard
             if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION)
-                old.mediaItem?.mediaId?.takeIf { it.startsWith("lesson/") }?.let(::finish)
+                old.mediaItem?.takeIf { it.mediaId.startsWith("lesson/") }?.let(::finish)
         }
 
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_ENDED)
-                player.currentMediaItem?.mediaId?.takeIf { it.startsWith("lesson/") }?.let(::finish)
+                player.currentMediaItem?.takeIf { it.mediaId.startsWith("lesson/") }?.let(::finish)
         }
     }
 

@@ -46,6 +46,7 @@ class Library(private val source: Source, private val listening: Listening, priv
         private val GROUP_ORDER = listOf("course", "holiday", "general")
         private const val SEARCH_LIMIT = 60
         private const val SERIES_FOUND = 20
+        private const val RENUMBERED = 20  // lessons a series may have lost since a lesson's progress was kept
 
         fun lessonId(series: String, position: Int) = "lesson/$series/$position"
         /** a lesson id's "<series id>/<number>" (as Positions keeps it), series id and number */
@@ -65,8 +66,8 @@ class Library(private val source: Source, private val listening: Listening, priv
         id == NEWEST -> source.catalog().newest.mapNotNull { newest ->
             val series = source.catalog().series(newest.series) ?: return@mapNotNull null
             Node(lessonId(newest.series, newest.position), newest.title, "${series.name} · ${series.rav}",
-                art = art(series), progress = listening.progress("${newest.series}/${newest.position}"), url = newest.url,
-                series = series.id)
+                art = art(series), progress = progressOf(series.id, newest.position, newest.url, series.lessons),
+                url = newest.url, series = series.id)
         }
         id == RAVS -> source.catalog().ravs.map {
             Node("rav/${it.name}", it.name, labels.seriesCount(it.seriesCount), browsable = true, art = it.image)
@@ -116,7 +117,7 @@ class Library(private val source: Source, private val listening: Listening, priv
 
     private fun foundLesson(entry: SearchEntry, series: Series) = Node(
         lessonId(series.id, entry.position), entry.title, "${series.name} · ${series.rav}", art = art(series),
-        progress = listening.progress("${series.id}/${entry.position}"), url = entry.url, series = series.id)
+        progress = progressOf(series.id, entry.position, entry.url, series.lessons), url = entry.url, series = series.id)
 
     /** the series a node is, or is of (for adding it to a podcast app) */
     fun seriesOf(id: String): Series? = when {
@@ -149,20 +150,48 @@ class Library(private val source: Source, private val listening: Listening, priv
 
     /** the series heard lately, each at its lesson to continue: the one left in the middle, or the next */
     private fun continueListening(): List<Node> = listening.recent().mapNotNull { key ->
-        val (seriesId, position) = lessonParts(key)
+        val seriesId = lessonParts(key).first
         val lessons = runCatching { lessonNodes(seriesId) }.getOrDefault(emptyList())
-        val progress = listening.progress(key)
-        val index = if (progress?.finished == true) position else position - 1
         val series = source.catalog().series(seriesId) ?: return@mapNotNull null
-        lessons.getOrNull(index)?.copy(subtitle = "${series.name} · ${series.rav}", dismissible = true)
+        lessons.getOrNull(goOn(key, lessons))?.copy(subtitle = "${series.name} · ${series.rav}", dismissible = true)
+    }
+
+    /**
+     * the lesson (its index) a series heard lately goes on from: the one heard last, if it was left in its middle, else
+     * the one after it. Found by its audio, if the series was renumbered since (a lesson added before it, or removed)
+     */
+    private fun goOn(key: String, lessons: List<Node>): Int {
+        val kept = listening.progress(key)
+        val at = kept?.url?.let { url -> lessons.indexOfFirst { it.url == url }.takeIf { it >= 0 } }
+            ?: (lessonParts(key).second - 1)
+        return if (kept?.finished == true) at + 1 else at
+    }
+
+    /**
+     * a lesson's progress. It's kept by the lesson's number in its series, which changes when the series does: what
+     * was kept for another lesson (by its audio) isn't this one's, whose own may be kept by another number
+     */
+    private fun progressOf(series: String, position: Int, url: String?, count: Int) =
+        progressIn(series, count)(position, url)
+
+    /** progressOf, for many lessons of a series (what's kept by other numbers is read once) */
+    private fun progressIn(series: String, count: Int): (Int, String?) -> Progress? {
+        val byAudio by lazy {
+            (1..count + RENUMBERED).mapNotNull { listening.progress("$series/$it") }.filter { it.url != null }
+                .associateBy { it.url }
+        }
+        return { position, url ->
+            val kept = listening.progress("$series/$position")
+            if (kept != null && (kept.url == null || url == null || kept.url == url)) kept
+            else url?.let { byAudio[it] }
+        }
     }
 
     /** a series' lesson to go on from: the last one heard, or after it; else its first (a course) or newest */
     private fun nextIn(series: Series): String {
         val heard = listening.recent().firstOrNull { it.substringBeforeLast('/') == series.id }
         if (heard != null) {
-            val position = heard.substringAfterLast('/').toInt()
-            val next = if (listening.progress(heard)?.finished == true) position + 1 else position
+            val next = goOn(heard, lessonNodes(series.id)) + 1
             if (next <= series.lessons) return lessonId(series.id, next)
         }
         return lessonId(series.id, if (series.course) 1 else series.lessons)
@@ -170,10 +199,13 @@ class Library(private val source: Source, private val listening: Listening, priv
 
     private fun lessonNodes(seriesId: String): List<Node> {
         val series = source.catalog().series(seriesId) ?: return emptyList()
-        return source.lessons(seriesId).map { lesson ->
+        val lessons = source.lessons(seriesId)
+        val progressOf = progressIn(seriesId, lessons.size)
+        return lessons.map { lesson ->
             val details = listOfNotNull(lesson.date, lesson.minutes?.let(labels.minutes)).joinToString(" · ")
             Node(lessonId(seriesId, lesson.position), "${lesson.position}. ${lesson.title}", details, art = art(series),
-                progress = listening.progress("$seriesId/${lesson.position}"), url = lesson.url, series = seriesId)
+                progress = progressOf(lesson.position, lesson.url), url = lesson.url,
+                series = seriesId)
         }
     }
 

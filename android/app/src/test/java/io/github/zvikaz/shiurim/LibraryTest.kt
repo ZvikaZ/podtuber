@@ -36,7 +36,7 @@ class LibraryTest {
         SearchEntry("d", 1, "אגרת 1", "מתוך אגרות הראיה", "ח׳ חשון", 40, "https://x/d1.mp3"),
     )
 
-    private fun library(listening: Listening = FakeListening()) = Library(object : Source {
+    private fun library(listening: Listening = FakeListening(), lessons: Map<String, List<Lesson>> = this.lessons) = Library(object : Source {
         override fun catalog() = catalog
         override fun lessons(seriesId: String) = lessons.getValue(seriesId)
         override fun searchIndex() = searchIndex
@@ -140,5 +140,46 @@ class LibraryTest {
         assertEquals("lesson/d/2", library.play("הרב קלנר").let { it!!.lessons[it.start].id })
         assertEquals("lesson/a/2", library.play("").let { it!!.lessons[it.start].id })
         assertNull(library.play("משהו אחר לגמרי"))
+    }
+
+    /** series d, since a lesson of earlier date was added at its start: its lessons are now one number later */
+    private val renumbered = lessons + ("d" to listOf(Lesson("d", 1, "אגרת 0", "א׳ חשון", 30, "https://x/d0.mp3", "")) +
+        lessons.getValue("d").map { it.copy(position = it.position + 1) })
+
+    @Test
+    fun `continue follows a lesson renumbered since it was heard, and resumes where it was left`() {
+        val listening = FakeListening(mutableMapOf("d/1" to Progress(5_000, 2_000_000, false, "https://x/d1.mp3")),
+            mutableListOf("d/1"))
+        val library = library(listening, renumbered)
+        val continued = library.children(Library.CONTINUE).single()
+        assertEquals("lesson/d/2", continued.id)
+        assertEquals(5_000L, continued.progress!!.position)
+        val queue = library.queue(continued.id)!!
+        assertEquals("https://x/d1.mp3", queue.lessons[queue.start].url)
+        assertEquals(5_000L, queue.position)
+        assertEquals("lesson/d/2", library.play("").let { it!!.lessons[it.start].id })
+    }
+
+    @Test
+    fun `a lesson isn't given the progress of another that had its number`() {
+        val listening = FakeListening(mutableMapOf("d/1" to Progress(5_000, 2_000_000, true, "https://x/d1.mp3")),
+            mutableListOf("d/1"))
+        val library = library(listening, renumbered)
+        assertNull(library.children("series/d").first().progress)  // the new lesson 1 wasn't heard
+        assertEquals(0L, library.queue("lesson/d/1")!!.position)
+        assertEquals(true, library.children("series/d")[1].progress!!.finished)  // the one heard, now 2
+        // heard to its end, continue goes on to the lesson after it
+        assertEquals("lesson/d/3", library.children(Library.CONTINUE).single().id)
+    }
+
+    @Test
+    fun `resuming goes on after a lesson heard to its end, from where the next one was left`() {
+        // (the phone app used to load the lesson heard last itself, to its start, even when it was heard to its end)
+        val listening = FakeListening(
+            mutableMapOf("a/1" to Progress(3_000_000, 3_000_000, true), "a/2" to Progress(60_000, 3_000_000, false)),
+            mutableListOf("a/1"))
+        val queue = library(listening).play("")!!
+        assertEquals("lesson/a/2", queue.lessons[queue.start].id)
+        assertEquals(60_000L, queue.position)
     }
 }
