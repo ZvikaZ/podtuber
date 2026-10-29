@@ -143,6 +143,10 @@ class NowPlayingActivity : Activity() {
         val next = control(getString(R.string.next_short)) { controller?.seekToNextMediaItem() }
         heard = action(getString(R.string.mark_heard)) { toggleHeard() }
         val subscribe = action(getString(R.string.subscribe_short)) { command("subscribe") }
+        val shareLesson = action(getString(R.string.share)) {
+            val id = controller?.currentMediaItem?.mediaId.orEmpty()
+            if (id.startsWith("lesson/")) share(this, title.text.toString(), lessonPage(id))
+        }
 
         content.addView(toolbar)
         content.addView(artwork, LinearLayout.LayoutParams(dp(292), dp(292)).apply {
@@ -173,6 +177,7 @@ class NowPlayingActivity : Activity() {
         content.addView(LinearLayout(this).apply {
             gravity = Gravity.CENTER
             addView(heard, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(6) })
+            addView(shareLesson, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(6); marginEnd = dp(6) })
             addView(subscribe, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(6) })
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)).apply { topMargin = dp(12) })
         return ScrollView(this).apply {

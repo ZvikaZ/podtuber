@@ -46,7 +46,7 @@ class CarPlayerTest {
                 override fun onConnectionFailed() { connected.completeExceptionally(IllegalStateException("refused")) }
             }, null).apply { connect() }
         }
-        connected.get(20, TimeUnit.SECONDS)
+        connected.get(60, TimeUnit.SECONDS)  // (a slow emulator takes long to start the service)
         controller = onThread { MediaController(context, browser.sessionToken) }
     }
 
@@ -97,7 +97,7 @@ class CarPlayerTest {
         // what the car is given: our buttons for back and forward, in their slots, and no "previous"
         println("car state: $state, extras ${state.extras?.keySet()?.associateWith { state.extras!!.get(it) }}")
         val completionAction = state.customActions.single { it.action == "heard" || it.action == "unheard" }.action
-        assertEquals(listOf("back", "forward", "speed", "next", completionAction, "subscribe"),
+        assertEquals(listOf("back", "forward", "speed", "next", completionAction, "subscribe", "dismiss"),
             state.customActions.map { it.action })
         assertTrue(state.actions and PlaybackState.ACTION_PLAY_PAUSE != 0L)
         assertEquals(0L, state.actions and PlaybackState.ACTION_SKIP_TO_PREVIOUS)
@@ -142,5 +142,14 @@ class CarPlayerTest {
         assertEquals(heardIcon.getValue(opposite), action(state, opposite).icon)
         controller.transportControls.sendCustomAction(action(state, opposite), null)
         waitFor("heard button to toggle back") { current -> current.customActions.any { it.action == completionAction } }
+
+        // removing it from Continue, where Android Auto can (its lists show no actions on their items): it stops, and
+        // its series is out of Continue (stopping saves where it was, which mustn't bring it back)
+        controller.transportControls.sendCustomAction(action(controller.playbackState!!, "dismiss"), null)
+        waitFor("stopped") { it.state == PlaybackState.STATE_PAUSED }
+        Thread.sleep(1_000)
+        val series = Library.lessonParts(lesson).first
+        val recent = Positions(context.getSharedPreferences("positions", 0)).recent()
+        assertTrue("$recent", recent.none { it.substringBeforeLast('/') == series })
     }
 }

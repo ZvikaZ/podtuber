@@ -24,7 +24,6 @@ APK = 'shiurim.apk'  # the app (android/), as built, published from static_dir
 PLAY_STORE = 'https://play.google.com/store/apps/details?id='
 POCKET_CASTS = PLAY_STORE + 'au.com.shiftyjelly.pocketcasts'
 ISSUES_URL = 'https://github.com/ZvikaZ/podtuber/issues'
-DESCRIPTION_LIMIT = 200  # characters of a lesson's description kept in the search index
 NEW_LESSONS = 12  # how many of the newest lessons the home screen shows
 ONGOING = timedelta(days=90)  # a series with a lesson this recent is still being added to
 # an open book, with sound waves over it, in the page's colors
@@ -233,7 +232,9 @@ PAGE = """<!DOCTYPE html>
   .num { color: var(--muted); font-variant-numeric: tabular-nums; margin-inline-end: .35rem; }
   .description { display: block; text-align: start; color: var(--muted); font: inherit; font-size: .9rem; background: none;
                  border: 0; padding: 0; cursor: pointer; display: -webkit-box; -webkit-box-orient: vertical;
-                 -webkit-line-clamp: 3; overflow: hidden; }
+                 -webkit-line-clamp: 3; overflow: hidden;
+                 width: 100%; overflow-wrap: anywhere; }  /* long addresses in it wrap, rather than widen the page */
+  .name, .meta { overflow-wrap: anywhere; }
   .description[aria-expanded=true] { -webkit-line-clamp: unset; }
   #browse .rav-name { display: none; }  /* the rav's page names him once, as its title */
   .row { display: flex; gap: .25rem .5rem; flex-wrap: wrap; align-items: center; justify-content: space-between; }
@@ -430,11 +431,21 @@ for (const button of document.querySelectorAll('button[data-copy]'))
 function shareLink(hash, title, text) {
   const url = new URL(location.pathname, location.origin);
   url.hash = hash;
-  if (navigator.share) navigator.share({title, text, url: url.href}).catch(() => {});
+  if (app && typeof app.share === 'function') app.share(text ? `${title}
+${text}` : title, url.href);  // its share sheet
+  else if (navigator.share) navigator.share({title, text, url: url.href}).catch(() => {});
   else copy(`${text ? text + ' ' : ''}${url.href}`, TEXTS.link_copied);
 }
 for (const button of document.querySelectorAll('button[data-share]'))
   button.onclick = () => shareLink(button.closest('li').id, button.dataset.title, button.dataset.text);
+function shareButton(lesson, title) {  // a lesson's: "<series id>/<its number>"
+  const button = element('button', TEXTS.share, 'btn');
+  button.type = 'button';
+  button.onclick = () => shareLink(lesson, title);
+  return button;
+}
+for (const button of document.querySelectorAll('button[data-share-lesson]'))  // the newest lessons'
+  button.replaceWith(shareButton(button.dataset.shareLesson, button.dataset.title));
 
 function listenLink(url, lesson) {  // lesson: "<series id>/<its number>", which the app plays (see below)
   const link = element('a', TEXTS.listen, 'btn');
@@ -522,10 +533,7 @@ async function toggleEpisodes(li, open) {
       const meta = [date];
       if (minutes) meta.push(TEXTS.minutes.replace('{count}', minutes));
       const links = element('div', null, 'links');
-      const share = element('button', TEXTS.share, 'btn');
-      share.type = 'button';
-      share.onclick = () => shareLink(`${li.id}/${index + 1}`, title);
-      links.append(listenLink(url, lesson), share);
+      links.append(listenLink(url, lesson), shareButton(lesson, title));
       item.append(row(meta, links));
       return decorateLesson(item, lesson);
     }));
@@ -642,7 +650,7 @@ input.oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(type
 wholeWords.onchange = typed;
 
 function lessonResult([series, title, description, date, minutes, position, url], query) {
-  const [feedId, seriesName, rav] = lessons.series[series];
+  const [feedId, seriesName, rav, origin] = lessons.series[series];
   const lesson = `${feedId}/${position}`;
   const li = element('li', null, 'go');
   li.dataset.go = lesson;
@@ -656,7 +664,7 @@ function lessonResult([series, title, description, date, minutes, position, url]
     why.append(highlighted(excerpt(description, query), query));
     li.append(why);
   }
-  const meta = [`${seriesName} · ${rav}`, date];
+  const meta = [[seriesName, rav, origin].filter(Boolean).join(' · '), date];
   if (minutes) meta.push(TEXTS.minutes.replace('{count}', minutes));
   const link = element('a', TEXTS.to_series, 'btn');
   link.href = `#${feedId}/${position}`;
@@ -666,7 +674,7 @@ function lessonResult([series, title, description, date, minutes, position, url]
     show();
   };
   const links = element('div', null, 'links');
-  links.append(listenLink(url, lesson), link);
+  links.append(listenLink(url, lesson), shareButton(lesson, title), link);
   li.append(row(meta, links));
   return decorateLesson(li, lesson);
 }
@@ -819,26 +827,29 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
             badges += (f' <span class="badge missing" title="{texts["missing_title"]}">'
                        f'{texts["missing"](podcast.missing)}</span>')
         group, order = group_of(name)
+        origin = texts['source'].get(source, source)  # the site its lessons are from, as the page names it
         items.append(ITEM.format(
             feed_id=escape(feed_id), rav=escape(rav), name=escape(name), source=escape(source), group=group, order=order,
             updated=latest.isoformat(), size=len(episodes),
             art=escape((podcast.image or '').removeprefix(base_url)), meta=' · '.join(meta), badges=badges,
             source_label=f'<span class="rav-name">{escape(rav)}{" · " if source else ""}</span>'
-                         + escape(texts['source'].get(source, source)),
+                         + escape(origin),
             open=f'<a class="btn primary" data-app href="{escape(podcast_app_url(podcast.feed_url))}">{texts["open"]}</a>',
             lessons_button=texts['lessons_button'].format(count=len(episodes)),
             url=escape(podcast.feed_url), copy=texts['copy'],
             share=texts['share'], share_title=escape(name),
             share_text=escape(texts['script']['share_text'].format(name=name, rav=rav, count=len(episodes))),
         ))
-        series.append([feed_id, name, rav])
+        series.append([feed_id, name, rav, origin])
         catalog.append({'id': feed_id, 'name': name, 'rav': rav, 'group': group, 'order': order,
                         'lessons': len(episodes), 'updated': latest.isoformat(), 'years': getattr(podcast, 'years', ''),
-                        'course': bool(getattr(podcast, 'course', False)), 'source': source, 'feed': podcast.feed_url,
+                        'course': bool(getattr(podcast, 'course', False)), 'source': source, 'origin': origin,
+                        'feed': podcast.feed_url,
                         'art': (podcast.image or '').removeprefix(base_url)})
         lessons += [search_entry(len(series) - 1, episode, position, texts)
                     for position, episode in enumerate(episodes, 1)]
-        newest += [(episode, position, feed_id, name, rav) for position, episode in enumerate(episodes, 1)][-3:]
+        newest += [(episode, position, feed_id, about(name, rav, origin))
+                   for position, episode in enumerate(episodes, 1)][-3:]
         write_episodes(path.parent / EPISODES_DIR / f'{feed_id}.json', episodes, texts)
 
     index = json.dumps({'series': series, 'lessons': lessons}, ensure_ascii=False, separators=(',', ':'))
@@ -906,7 +917,7 @@ def write_catalog(path, now, ravs, series, newest, texts, search):
         'newest': [{'series': feed_id, 'position': position, 'title': episode.original_title or episode.title or '',
                     'date': episode.publication_date.isoformat(), 'minutes': minutes(episode),
                     'url': audio_url(episode)}
-                   for episode, position, feed_id, name, rav in sorted(newest, key=lambda item: item[0].publication_date,
+                   for episode, position, feed_id, _ in sorted(newest, key=lambda item: item[0].publication_date,
                                                                        reverse=True)[:NEWEST_IN_CATALOG]],
     }, ensure_ascii=False, separators=(',', ':')), encoding='utf8')
 
@@ -952,18 +963,26 @@ def rav_options(ravs):
     return ''.join(f'<option value="{escape(name)}">{escape(name)}</option>' for name in names)
 
 
+def about(name, rav, origin):
+    """what a lesson's line says of where it's from: its series, rav, and the site it's from"""
+    return ' · '.join(part for part in (name, rav, origin) if part)
+
+
 def new_lessons(newest, texts):
+    """the home screen's newest lessons; newest is of (episode, its number, its series' feed id, about it)"""
     lines = []
-    for episode, position, feed_id, name, rav in sorted(newest, key=lambda item: item[0].publication_date,
-                                                         reverse=True)[:NEW_LESSONS]:
+    for episode, position, feed_id, series in sorted(newest, key=lambda item: item[0].publication_date,
+                                                     reverse=True)[:NEW_LESSONS]:
         url = escape(audio_url(episode))
         lines.append(
             f'<li class="go" data-go="{escape(feed_id)}/{position}">'
             f'<div class="name" dir="auto">{escape(episode.original_title or episode.title or "")}</div>'
-            f'<div class="row"><div class="meta">{escape(name)} · {escape(rav)} · '
+            f'<div class="row"><div class="meta">{escape(series)} · '
             f'{texts["date"](episode.publication_date.date())}</div>'
             f'<div class="links"><a class="btn" href="{url}" target="_blank" rel="noopener" '
             f'data-lesson="{escape(feed_id)}/{position}">{texts["script"]["listen"]}</a>'
+            f'<button type="button" class="btn" data-share-lesson="{escape(feed_id)}/{position}" '
+            f'data-title="{escape(episode.original_title or episode.title or "")}">{texts["share"]}</button>'
             f'<a class="btn" href="#{escape(feed_id)}/{position}">{texts["script"]["to_series"]}</a></div></div></li>')
     return ''.join(lines)
 
@@ -995,6 +1014,9 @@ def audio_url(episode):
     return episode.media.url if episode.media else ''
 
 
+ADDRESS = re.compile(r'\S*https?://\S+|\S+@\S+\.\S+')  # a web or email address, in a description
+
+
 def description(episode, texts, limit=None):
     """the episode's own description as plain text, unless it's only its date, as many are"""
     summary = getattr(episode, 'original_summary', None)
@@ -1010,9 +1032,13 @@ def minutes(episode):
 
 
 def search_entry(series, episode, position, texts):
-    """[series index, title, description (searched too), date, minutes, position in its series, audio url]"""
+    """
+    [series index, title, description (searched too), date, minutes, position in its series, audio url]. All of the
+    description is searched (what a lesson is about may come last in it), but not its addresses, of no use to search
+    """
     return [series, getattr(episode, 'original_title', None) or episode.title or '',
-            description(episode, texts, DESCRIPTION_LIMIT), texts['date'](episode.publication_date.date()),
+            ' '.join(ADDRESS.sub(' ', description(episode, texts)).split()),
+            texts['date'](episode.publication_date.date()),
             minutes(episode), position, audio_url(episode)]
 
 

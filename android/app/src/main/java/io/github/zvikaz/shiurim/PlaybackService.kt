@@ -149,22 +149,25 @@ class PlaybackService : MediaLibraryService() {
                 .setDisplayName(getString(R.string.next_lesson)).setSlots(CommandButton.SLOT_OVERFLOW).build(),
             if (currentIsHeard()) unheardButton() else heardButton(),
             subscribeButton(),
+            // a lesson played is in Continue: the player is where Android Auto can remove it from there (it shows no
+            // actions on the items of its lists: it doesn't ask for custom browse actions)
+            dismissButton(),
         )
     }
 
     private fun speedOf(speed: Float) = SPEEDS.minBy { kotlin.math.abs(it.first - speed) }
 
     private fun subscribeButton() = CommandButton.Builder(CommandButton.ICON_PLAYLIST_ADD)
-        .setSessionCommand(SessionCommand(SUBSCRIBE, Bundle.EMPTY))
+        .setSessionCommand(SessionCommand(SUBSCRIBE, Bundle.EMPTY)).setIconUri(actionIcon(R.drawable.ic_action_subscribe))
         .setDisplayName(getString(R.string.subscribe)).setSlots(CommandButton.SLOT_OVERFLOW).build()
 
     // the icon shows the lesson's state, as players do (unfilled: not heard yet), and its name what a tap does
     private fun heardButton() = CommandButton.Builder(CommandButton.ICON_CHECK_CIRCLE_UNFILLED)
-        .setSessionCommand(SessionCommand(HEARD, Bundle.EMPTY))
+        .setSessionCommand(SessionCommand(HEARD, Bundle.EMPTY)).setIconUri(actionIcon(R.drawable.ic_action_heard))
         .setDisplayName(getString(R.string.mark_heard)).setSlots(CommandButton.SLOT_OVERFLOW).build()
 
     private fun unheardButton() = CommandButton.Builder(CommandButton.ICON_CHECK_CIRCLE_FILLED)
-        .setSessionCommand(SessionCommand(UNHEARD, Bundle.EMPTY))
+        .setSessionCommand(SessionCommand(UNHEARD, Bundle.EMPTY)).setIconUri(actionIcon(R.drawable.ic_action_unheard))
         .setDisplayName(getString(R.string.mark_unheard)).setSlots(CommandButton.SLOT_OVERFLOW).build()
 
     private fun currentIsHeard(): Boolean {
@@ -172,8 +175,14 @@ class PlaybackService : MediaLibraryService() {
         return id.startsWith("lesson/") && positions.progress(Library.lessonKey(id))?.finished == true
     }
 
+    /**
+     * an action's icon, for cars that show the actions of a lesson or series in their lists (custom browse actions;
+     * Android Auto doesn't): without an icon's address, they don't show them (a predefined icon has none)
+     */
+    private fun actionIcon(icon: Int) = Uri.parse("android.resource://$packageName/$icon")
+
     private fun dismissButton() = CommandButton.Builder(CommandButton.ICON_QUEUE_REMOVE)
-        .setSessionCommand(SessionCommand(DISMISS, Bundle.EMPTY))
+        .setSessionCommand(SessionCommand(DISMISS, Bundle.EMPTY)).setIconUri(actionIcon(R.drawable.ic_action_dismiss))
         .setDisplayName(getString(R.string.remove_continue)).setSlots(CommandButton.SLOT_OVERFLOW).build()
 
     /** the player's next speed (of SPEEDS), kept for next time */
@@ -348,12 +357,16 @@ class PlaybackService : MediaLibraryService() {
                     }
                 }
                 DISMISS -> {
-                    val id = args.getString(MediaConstants.EXTRA_KEY_MEDIA_ID)
-                        ?: return immediate(SessionResult(SessionError.ERROR_BAD_VALUE))
+                    val id = args.getString(MediaConstants.EXTRA_KEY_MEDIA_ID) ?: player.currentMediaItem?.mediaId?.also {
+                        // the player's button: it stops (saving where it was, which would bring it back to Continue)
+                        player.pause()
+                        save()
+                    } ?: return immediate(SessionResult(SessionError.ERROR_BAD_VALUE))
                     if (!id.startsWith("lesson/")) return immediate(SessionResult(SessionError.ERROR_BAD_VALUE))
                     return scope.future(Dispatchers.IO) {
                         positions.dismiss(Library.lessonKey(id))
                         notifyProgressChanged(Library.lessonParts(id).first)
+                        launch(Dispatchers.Main) { session.setMediaButtonPreferences(buttons()) }
                         SessionResult(SessionResult.RESULT_SUCCESS)
                     }
                 }

@@ -20,6 +20,7 @@ data class Series(
     val id: String, val name: String, val rav: String, val group: String, val order: Int, val lessons: Int,
     val updated: String, val years: String, val course: Boolean, val art: String,
     val feed: String,  // its podcast feed, for adding it to a podcast app
+    val origin: String = "",  // the site its lessons are from
 )
 
 data class Newest(
@@ -60,7 +61,7 @@ class Catalog(
                 series = json.getJSONArray("series").objects().map {
                     Series(it.getString("id"), it.getString("name"), it.getString("rav"), it.getString("group"),
                         it.optInt("order"), it.getInt("lessons"), it.getString("updated"), it.optString("years"),
-                        it.optBoolean("course"), it.optString("art"), it.optString("feed"))
+                        it.optBoolean("course"), it.optString("art"), it.optString("feed"), it.optString("origin"))
                 },
                 newest = json.getJSONArray("newest").objects().map {
                     Newest(it.getString("series"), it.getInt("position"), it.getString("title"), it.getString("date"),

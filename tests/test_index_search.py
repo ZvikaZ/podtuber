@@ -44,6 +44,30 @@ class SearchTest(unittest.TestCase):
             "        lessonFound(lesson, sherki, matches, 'הרב שלמה אבינר'), lessonFound(lesson, sherki, matches, '')];"))
 
 
+@unittest.skipUnless(shutil.which('node'), 'needs Node')
+class ShareTest(unittest.TestCase):
+    def share(self, app):
+        """what shareLink('feed/3', title) does: in the app (app: its share sheet, or None), or a browser's"""
+        start = SCRIPT.index('function shareLink(')
+        function = SCRIPT[start:SCRIPT.index('\n}\n', start) + 2]
+        program = ("const done = []; const location = {pathname: '/podtuber/', origin: 'https://zvikaz.github.io'};"
+                   "const navigator = {share: data => { done.push(['navigator', data]); return Promise.resolve(); }};"
+                   "const copy = text => done.push(['copy', text]); const TEXTS = {};"
+                   f"const app = {app or 'undefined'};\n{function}\n"
+                   "shareLink('feed/3', 'שיעור'); console.log(JSON.stringify(done));")
+        result = subprocess.run(['node', '-e', program], capture_output=True, text=True, encoding='utf8', check=True)
+        return json.loads(result.stdout)
+
+    def test_the_app_shares_by_its_share_sheet(self):
+        # its WebView has no navigator.share: a lesson's "share" only copied its link
+        self.assertEqual([['app', 'שיעור', 'https://zvikaz.github.io/podtuber/#feed/3']],
+                         self.share("{share: (title, url) => done.push(['app', title, url])}"))
+
+    def test_a_browser_shares_by_its_own(self):
+        self.assertEqual([['navigator', {'title': 'שיעור', 'url': 'https://zvikaz.github.io/podtuber/#feed/3'}]],
+                         self.share(None))
+
+
 class RavFilterTest(unittest.TestCase):
     def test_the_ravs_to_choose_from_are_by_surname(self):
         ravs = [('הרב אורי שרקי', 3, 10, None), ('הרב שלמה אבינר', 2, 5, None), ('הרב "x" <y>', 1, 1, None)]

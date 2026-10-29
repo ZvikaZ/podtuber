@@ -65,7 +65,7 @@ class Library(private val source: Source, private val listening: Listening, priv
         id == CONTINUE -> continueListening()
         id == NEWEST -> source.catalog().newest.mapNotNull { newest ->
             val series = source.catalog().series(newest.series) ?: return@mapNotNull null
-            Node(lessonId(newest.series, newest.position), newest.title, "${series.name} · ${series.rav}",
+            Node(lessonId(newest.series, newest.position), newest.title, about(series),
                 art = art(series), progress = progressOf(series.id, newest.position, newest.url, series.lessons),
                 url = newest.url, series = series.id)
         }
@@ -116,7 +116,7 @@ class Library(private val source: Source, private val listening: Listening, priv
     }
 
     private fun foundLesson(entry: SearchEntry, series: Series) = Node(
-        lessonId(series.id, entry.position), entry.title, "${series.name} · ${series.rav}", art = art(series),
+        lessonId(series.id, entry.position), entry.title, about(series), art = art(series),
         progress = progressOf(series.id, entry.position, entry.url, series.lessons), url = entry.url, series = series.id)
 
     /** the series a node is, or is of (for adding it to a podcast app) */
@@ -153,7 +153,7 @@ class Library(private val source: Source, private val listening: Listening, priv
         val seriesId = lessonParts(key).first
         val lessons = runCatching { lessonNodes(seriesId) }.getOrDefault(emptyList())
         val series = source.catalog().series(seriesId) ?: return@mapNotNull null
-        lessons.getOrNull(goOn(key, lessons))?.copy(subtitle = "${series.name} · ${series.rav}", dismissible = true)
+        lessons.getOrNull(goOn(key, lessons))?.copy(subtitle = about(series), dismissible = true)
     }
 
     /**
@@ -211,12 +211,16 @@ class Library(private val source: Source, private val listening: Listening, priv
 
     private fun seriesNode(series: Series) = Node(
         "series/${series.id}", series.name,
-        listOf(labels.lessonsCount(series.lessons), series.years).filter { it.isNotEmpty() }.joinToString(" · "),
+        listOf(labels.lessonsCount(series.lessons), series.years, series.origin).filter { it.isNotEmpty() }.joinToString(" · "),
         browsable = true, art = art(series), series = series.id,
         progress = (1..series.lessons).count { listening.progress("${series.id}/$it")?.finished == true }.let { heard ->
             Progress(heard.toLong(), series.lessons.toLong(), heard == series.lessons)
         },
     )
+
+    /** what a lesson's line says of where it's from: its series, rav, and the site it's from */
+    private fun about(series: Series) = listOf(series.name, series.rav, series.origin).filter { it.isNotEmpty() }
+        .joinToString(" · ")
 
     /** a series' artwork: its own, if the site has it (a podcast published elsewhere has its own elsewhere), or its rav's */
     private fun art(series: Series) = series.art.takeIf { it.isNotEmpty() && "://" !in it }

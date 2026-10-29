@@ -60,12 +60,18 @@ def clean_text(text):
     return ' '.join(html.unescape(text).replace("''", '"').split())
 
 
-def strip_rav_name(text, rav_name):
-    """'כוזרי [תשע"ז] - הרב קלנר' -> 'כוזרי [תשע"ז]', where the rav's full name is given separately anyway"""
+def strip_rav_name(text, rav_name, series=False):
+    """
+    'כוזרי [תשע"ז] - הרב קלנר' -> 'כוזרי [תשע"ז]', where the rav's full name is given separately anyway; and
+    'שיעורי הרב אלישע וישליצקי זצ"ל לשבועות' -> 'לשבועות', 'הרב אלישע פורים' (a series named by his first name alone) -> 'פורים'
+    """
     if not rav_name:
         return text
     last_name = rav_name.split()[-1]
-    text = re.sub(rf'\s*[-|–]?\s*הרב\s+(?:\S+\s+){{0,2}}{re.escape(last_name)}\b(?:\s+(?:שליט"א|זצ"ל))?', '', text)
+    text = re.sub(rf'\s*[-|–]?\s*(?:שיעורי\s+)?הרב\s+(?:\S+\s+){{0,2}}{re.escape(last_name)}\b(?:\s+(?:שליט"א|זצ"ל))?',
+                  '', text)
+    if series and len(names := rav_name.split()) == 3:  # 'הרב <first name> <last name>'
+        text = re.sub(rf'^הרב\s+{re.escape(names[1])}\s+(?=\S)', '', text)
     return text.strip(' -|–')
 
 

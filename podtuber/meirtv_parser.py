@@ -101,10 +101,10 @@ def get_series_parsers(url, rav_name=None, topics=(), splits=()):
         elif isinstance(series_id, tuple):  # a part of a series too big for one podcast
             series_id, part = series_id
             part_id = hashlib.sha1(part.encode()).hexdigest()[:8]
-            name = f'{strip_rav_name(clean_text(series[series_id]["name"]), rav["name"]).strip(" -")} - {part}'
+            name = f'{strip_rav_name(clean_text(series[series_id]["name"]), rav["name"], series=True).strip(" -")} - {part}'
             feed_id, website = f'meirtv-{series_id}-part-{part_id}', series[series_id]['link']
         else:
-            name = strip_rav_name(clean_text(series[series_id]['name']), rav['name'])
+            name = strip_rav_name(clean_text(series[series_id]['name']), rav['name'], series=True)
             feed_id, website = f'meirtv-{series_id}', series[series_id]['link']
         parsers.append(SeriesParser(
             feed_id=feed_id,

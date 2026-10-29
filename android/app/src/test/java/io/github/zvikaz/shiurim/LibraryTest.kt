@@ -13,7 +13,7 @@ class LibraryTest {
           {"id":"a","name":"יחסי הורים וילדים · תשע\"ג","rav":"הרב אוהד תירוש","group":"course","order":0,"lessons":3,"updated":"2013-02-01","years":"תשע\"ג","course":true,"art":"art/a.jpg"},
           {"id":"b","name":"פורים","rav":"הרב אוהד תירוש","group":"holiday","order":8,"lessons":2,"updated":"2024-03-01","years":"","course":false,"art":"art/b.jpg"},
           {"id":"c","name":"ראש השנה","rav":"הרב אוהד תירוש","group":"holiday","order":1,"lessons":1,"updated":"2023-09-01","years":"","course":false,"art":"art/c.jpg"},
-          {"id":"d","name":"אגרות הראי\"ה","rav":"הרב יוסף קלנר","group":"course","order":0,"lessons":2,"updated":"2026-10-01","years":"","course":true,"art":"https://elsewhere/d.jpg","feed":"https://zvikaz.github.io/podtuber/d.rss"}],
+          {"id":"d","name":"אגרות הראי\"ה","rav":"הרב יוסף קלנר","group":"course","order":0,"lessons":2,"updated":"2026-10-01","years":"","course":true,"art":"https://elsewhere/d.jpg","feed":"https://zvikaz.github.io/podtuber/d.rss","origin":"האתר של הרב"}],
          "newest":[{"series":"d","position":2,"title":"אגרת ב","date":"2026-10-01","minutes":40,"url":"https://x/d2.mp3"},
                    {"series":"b","position":2,"title":"פורים ב","date":"2024-03-01","minutes":null,"url":"https://x/b2.mp3"}]}
     """.trimIndent())
@@ -181,5 +181,15 @@ class LibraryTest {
         val queue = library(listening).play("")!!
         assertEquals("lesson/a/2", queue.lessons[queue.start].id)
         assertEquals(60_000L, queue.position)
+    }
+
+    @Test
+    fun `a lesson's line names the site it's from, after its series and rav`() {
+        val library = library()
+        assertEquals("אגרות הראי\"ה · הרב יוסף קלנר · האתר של הרב", library.children(Library.NEWEST).first().subtitle)
+        assertEquals("אגרות הראי\"ה · הרב יוסף קלנר · האתר של הרב", library.search("מתוך אגרות").single().subtitle)
+        assertEquals("2 שיעורים · האתר של הרב", library.children("rav/הרב יוסף קלנר").single().subtitle)
+        // a series of no named site: as before
+        assertEquals("פורים · הרב אוהד תירוש", library.children(Library.NEWEST)[1].subtitle)
     }
 }

@@ -58,7 +58,7 @@ class CarIdleStateTest {
                 override fun onConnectionFailed() { connected.completeExceptionally(IllegalStateException("refused")) }
             }, null).apply { connect() }
         }
-        connected.get(20, TimeUnit.SECONDS)
+        connected.get(60, TimeUnit.SECONDS)  // (a slow emulator takes long to start the service)
         controller = onThread { MediaController(context, browser.sessionToken) }
 
         val until = SystemClock.elapsedRealtime() + 60_000

@@ -265,6 +265,12 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun removeFromContinue(lesson: String) = lessonKey(lesson)?.let(positions::dismiss) ?: Unit
 
+        /** the page's "share": by the phone's share sheet (the WebView has no navigator.share); only the site's pages */
+        @JavascriptInterface
+        fun share(title: String, url: String) {
+            if (url.startsWith(BuildConfig.SITE_URL)) runOnUiThread { share(this@MainActivity, title, url) }
+        }
+
         @JavascriptInterface
         fun recent(): String = JSONArray(positions.recent()).toString()
 
