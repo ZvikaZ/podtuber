@@ -318,7 +318,10 @@ rav = 'הרב אלישע וישליצקי'  # Meir TV names him with זצ"ל
 language = 'he-IL'
 category = 'Religion & Spirituality'
 subcategory = 'Judaism'
-image = 'https://zvikaz.github.io/podtuber/elisha-wishlitzky.jpg'  # from Meir TV
+image = 'https://zvikaz.github.io/podtuber/elisha-wishlitzky.jpg'  # from Wikimedia Commons
+# credited at the page's foot, as the photo's license (CC BY-SA 4.0) asks
+image_credit = 'צביקרי, CC BY-SA 4.0'
+image_credit_url = 'https://commons.wikimedia.org/wiki/File:HARAV_ELISHA.jpg'
 
 # shaveihevron.org: a rabbi's page is a podcast per series of his (the site names many by surname first: rav names
 # him as the other sites do)

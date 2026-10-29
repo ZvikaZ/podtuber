@@ -236,7 +236,9 @@ def main():
     write_index([{'podcast': podcast, 'name': podcast.name.removesuffix(getattr(parser, 'name_suffix', '')),
                   'feed_id': feed_id(parser), 'source': getattr(parser, 'get_source_name', lambda: '')(),
                   'rav': podcast_config.get('rav') or parser.get_owner_name(),
-                  'rav_image': podcast_config.get('image') or parser.get_image()}
+                  'rav_image': podcast_config.get('image') or parser.get_image(),
+                  'image_credit': podcast_config.get('image_credit'),
+                  'image_credit_url': podcast_config.get('image_credit_url')}
                  for (parser, podcast), (_, podcast_config) in zip(podcasts, parsers)
                  if parser in listed and podcast.episodes], output_dir / 'index.html',
                 title=config['general'].get('title', 'Podcasts'), lang=config['general'].get('language', 'en'),

@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from podtuber.index_page import PAGE, TEXTS, about, new_lessons, rav_cards, rav_summary, search_entry
+from podtuber.index_page import PAGE, TEXTS, about, new_lessons, photo_credits, rav_cards, rav_summary, search_entry
 
 
 class RabbiSummaryTest(unittest.TestCase):
@@ -26,6 +26,15 @@ class RabbiSummaryTest(unittest.TestCase):
         self.assertIn('data-series="2"', cards)
         self.assertIn('data-lessons="3"', cards)
         self.assertIn('2 סדרות · 3 שיעורים', cards)
+
+
+class PhotoCreditTest(unittest.TestCase):
+    def test_a_photo_whose_license_asks_for_credit_is_credited_once(self):
+        credit = {'rav': 'הרב אלישע וישליצקי', 'image_credit': 'צביקרי, CC BY-SA 4.0',
+                  'image_credit_url': 'https://commons.wikimedia.org/wiki/File:HARAV_ELISHA.jpg'}
+        podcasts = [credit, dict(credit), {'rav': 'הרב א'}]  # two series of his, and a rav of no credit
+        self.assertEqual(['תמונת הרב אלישע וישליצקי: <a href="https://commons.wikimedia.org/wiki/File:HARAV_ELISHA.jpg">'
+                          'צביקרי, CC BY-SA 4.0</a>.'], photo_credits(podcasts, TEXTS['he']))
 
 
 class LessonOriginTest(unittest.TestCase):

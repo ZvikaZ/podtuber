@@ -92,6 +92,7 @@ TEXTS = {
         'footer': ('אתר ואפליקציה לא רשמיים, שפותחו ומתוחזקים על־ידי צביקה הרמתי. '
                    'השיעורים מגיעים מ{sources}, וכל הזכויות שמורות לבעלי התוכן. '
                    'הצעות ודיווח על בעיות: <a href="{issues}">כאן</a>.'),
+        'photo_credit': 'תמונת {rav}: <a href="{url}">{credit}</a>.',
         'script': {
             'close': 'סגירה',
             'car_instructions': 'איך מפעילים',
@@ -802,7 +803,8 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
     """
     A page listing the podcasts, for subscribing to them from a phone, and searching them and their episodes. Each
     podcast is a dict of its podgen 'podcast' (with the 'missing', 'course' and 'years' create_rss sets), and its
-    'name', 'feed_id', 'source', 'rav' and 'rav_image' (the image config.toml gives his podcasts, if any).
+    'name', 'feed_id', 'source', 'rav' and 'rav_image' (the image config.toml gives his podcasts, if any), and
+    'image_credit' and 'image_credit_url', if its license asks for credit.
     """
     texts = TEXTS.get(lang.split('-')[0], TEXTS['he'])
     base_url = base_url.rstrip('/') + '/'
@@ -878,7 +880,8 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         'SORT': texts['sort'], 'SORT_NAME': texts['sort_name'], 'SORT_UPDATED': texts['sort_updated'],
         'SORT_SIZE': texts['sort_size'],
         'ITEMS': '\n'.join(items),
-        'FOOTER': texts['footer'].format(sources=', '.join(sources), issues=ISSUES_URL),
+        'FOOTER': ' '.join([texts['footer'].format(sources=', '.join(sources), issues=ISSUES_URL),
+                            *photo_credits(podcasts, texts)]),
         'TEXTS': json.dumps({**texts['script'], 'groups': texts['groups']}, ensure_ascii=False),
         'LESSONS_URL': json.dumps(lessons_file),
         'SCRIPT': SCRIPT,
@@ -961,6 +964,14 @@ def rav_options(ravs):
     """the search's choice of rav: each rav, by surname"""
     names = sorted((rav for rav, *_ in ravs), key=lambda name: (name.split()[-1], name))
     return ''.join(f'<option value="{escape(name)}">{escape(name)}</option>' for name in names)
+
+
+def photo_credits(podcasts, texts):
+    """the credits the ravs' photos' licenses ask for (each rav's once), for the footer"""
+    credits = {(entry['rav'], entry['image_credit'], entry.get('image_credit_url') or '')
+               for entry in podcasts if entry.get('image_credit')}
+    return [texts['photo_credit'].format(rav=escape(rav), credit=escape(credit), url=escape(url))
+            for rav, credit, url in sorted(credits)]
 
 
 def about(name, rav, origin):
