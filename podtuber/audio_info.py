@@ -1,5 +1,6 @@
 import io
 import logging
+import struct
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -13,13 +14,17 @@ from podtuber.cache import cache
 logger = logging.getLogger(__name__)
 
 HEAD_SIZE = 128 * 1024  # enough for the mp3's tags and first frames, from which its duration follows
+TAIL_SIZE = 512 * 1024  # enough for an mp4's index, when it's written after the audio
 # each thread's session, which keeps its connections open: hosts such as Bnei David's media server stop answering
 # a client that opens new connections too often
 _local = threading.local()
 
 
 def audio_info(url):
-    """{'size': bytes, 'duration': seconds (when it could be worked out)} of a remote mp3, or None if unreadable"""
+    """
+    {'size': bytes, 'duration': seconds (when it could be worked out), 'type': 'audio/x-m4a' (of an mp4, as Apple
+    names it; else an mp3)} of a remote audio file, or None if unreadable
+    """
     info = cache.section('audio').get(url)
     if info is None:
         prefetch([url])
@@ -37,9 +42,11 @@ def is_missing(url):
 
 
 def media_details(url):
-    """keyword arguments for podgen's Media: the size and duration, when known"""
+    """keyword arguments for podgen's Media: the type, and the size and duration, when known"""
     info = audio_info(url) or {}
-    details = {'size': info['size']} if 'size' in info else {}
+    details = {'type': info.get('type', 'audio/mpeg')}
+    if 'size' in info:
+        details['size'] = info['size']
     if 'duration' in info:
         details['duration'] = timedelta(seconds=info['duration'])
     return details
@@ -87,13 +94,38 @@ def _probe(url):
                 size = int(response.headers['Content-Range'].split('/')[1])
             finally:
                 response.close()
+            if head[4:8] == b'ftyp':  # an mp4 (whatever its name), with its duration where its index is: often last
+                duration = mp4_duration(head) or mp4_duration(_tail(url))
+                return {'size': size, 'type': 'audio/x-m4a', **({'duration': round(duration, 1)} if duration else {})}
             tag = TinyTag.get(file_obj=io.BufferedReader(_PartialFile(head[:HEAD_SIZE], size)), filename='audio.mp3')
-            return {'size': size} if tag.duration is None else {'size': size, 'duration': round(tag.duration, 1)}
+            duration = tag.duration
+            if duration and tag.bitrate and duration < size * 8 / (tag.bitrate * 1000) / 2:
+                # a variable bitrate mp3 that doesn't say its length: the frames read are timed, not the whole file
+                duration = size * 8 / (tag.bitrate * 1000)
+            return {'size': size} if duration is None else {'size': size, 'duration': round(duration, 1)}
         except Exception as err:
             error = err
             time.sleep(5)
     logger.warning(f"Couldn't read {url}: {error}")
     return {'error': str(error)}
+
+
+def _tail(url):
+    response = _session().get(url, headers={'Range': f'bytes=-{TAIL_SIZE}'}, timeout=30)
+    response.raise_for_status()
+    return response.content
+
+
+def mp4_duration(data):
+    """the seconds an mp4's movie header (mvhd box) says it lasts, if it's in the data"""
+    at = data.find(b'mvhd')
+    if at < 0 or len(data) < at + 36:
+        return None
+    if data[at + 4] == 1:  # version 1: 64-bit times
+        timescale, duration = struct.unpack('>IQ', data[at + 24:at + 36])
+    else:
+        timescale, duration = struct.unpack('>II', data[at + 16:at + 24])
+    return duration / timescale if timescale else None
 
 
 class _PartialFile(io.RawIOBase):

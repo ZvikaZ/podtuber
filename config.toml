@@ -403,6 +403,15 @@ category = 'Religion & Spirituality'
 subcategory = 'Judaism'
 image = 'https://zvikaz.github.io/podtuber/yosef-kalner.jpg'
 
+# nachyomi.netlify.app: a lesson per chapter of the Nach, as a podcast per book
+[[podcasts]]
+url = 'https://nachyomi.netlify.app/lessons'
+rav = 'הרב מוטי פרנקו'
+language = 'he-IL'
+category = 'Religion & Spirituality'
+subcategory = 'Judaism'
+image = 'https://zvikaz.github.io/podtuber/mordechai-franco.jpg'  # from ygolan.org (Yeshivat HaGolan)
+
 # or just one series (the URL of the series' page)
 # [[podcasts]]
 # url = 'https://www.haravyosefkalner.com/shiurim?sidra=%D7%90%D7%92%D7%A8%D7%AA+%D7%A2%D7%90+%28%D7%91%D7%A0%D7%99+%D7%93%D7%95%D7%93+%D7%94%D7%AA%D7%A9%D7%A4%D7%91%29'

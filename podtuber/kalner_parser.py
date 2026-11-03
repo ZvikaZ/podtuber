@@ -91,7 +91,7 @@ class LessonParser:
 
     def get_media(self, base_url, series_title):
         url = audio_url(self.item)
-        return Media(url=url, type='audio/mpeg', **media_details(url))
+        return Media(url=url, **media_details(url))
 
     def get_id(self):
         return self.item['_id']

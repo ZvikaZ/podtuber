@@ -21,7 +21,8 @@ from podgen import Podcast, Person, Category, htmlencode
 from pathvalidate import sanitize_filename
 
 from podtuber.youtube_parser import YoutubePlaylistParser, YoutubeSingleParser
-from podtuber import kalner_parser, bneidavid_parser, meirtv_parser, hakotel_parser, shaveihevron_parser, linked_feed
+from podtuber import kalner_parser, bneidavid_parser, meirtv_parser, hakotel_parser, shaveihevron_parser, linked_feed, \
+    nachyomi_parser
 from podtuber.cache import cache
 from podtuber.dedup import deduplicate
 from podtuber.index_page import write_index
@@ -54,10 +55,12 @@ def get_parsers(url, podcast_config=None):
         return hakotel_parser.get_series_parsers(url)
     elif netloc in ('www.shaveihevron.org', 'shaveihevron.org'):
         return shaveihevron_parser.get_series_parsers(url, (podcast_config or {}).get('rav'))
+    elif netloc in ('nachyomi.netlify.app', 'nachyomi.app'):
+        return nachyomi_parser.get_series_parsers(url, (podcast_config or {}).get('rav'))
     else:
         logger.error(f'Unsupported playlist: {url}\n'
-                     'Currently only YouTube, haravyosefkalner.com, bneidavid.org, meirtv.com, hakotel.org.il and '
-                     'shaveihevron.org are supported. You can open an issue, maybe your parser will be added.')
+                     'Currently only YouTube, haravyosefkalner.com, bneidavid.org, meirtv.com, hakotel.org.il, '
+                     'shaveihevron.org and nachyomi.netlify.app are supported. You can open an issue, maybe your parser will be added.')
         sys.exit()
 
 

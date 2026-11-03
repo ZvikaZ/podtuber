@@ -123,7 +123,7 @@ class LessonParser:
         return False
 
     def get_media(self, base_url, series_title):
-        return Media(url=self.lesson.audio_url, type='audio/mpeg', **media_details(self.lesson.audio_url))
+        return Media(url=self.lesson.audio_url, **media_details(self.lesson.audio_url))
 
     def get_id(self):
         return self.lesson.id
