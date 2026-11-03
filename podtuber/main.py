@@ -46,7 +46,8 @@ def get_parsers(url, podcast_config=None):
         return kalner_parser.get_series_parsers(url)
     elif netloc in ('www.bneidavid.org', 'bneidavid.org'):
         return bneidavid_parser.get_series_parsers(url, (podcast_config or {}).get('topics', ()),
-                                                   (podcast_config or {}).get('split_by_year', False))
+                                                   (podcast_config or {}).get('split_by_year', False),
+                                                   (podcast_config or {}).get('guest_lessons', False))
     elif netloc in ('www.meirtv.com', 'meirtv.com'):
         return meirtv_parser.get_series_parsers(url, (podcast_config or {}).get('rav'),
                                                 (podcast_config or {}).get('topics', ()),
@@ -247,6 +248,7 @@ def main():
     # the index names each podcast's source itself, so it uses the names without the told-apart suffix
     write_index([{'podcast': podcast, 'name': podcast.name.removesuffix(getattr(parser, 'name_suffix', '')),
                   'feed_id': feed_id(parser), 'source': getattr(parser, 'get_source_name', lambda: '')(),
+                  'order': getattr(parser, 'order', 0),
                   'rav': podcast_config.get('rav') or parser.get_owner_name(),
                   'rav_image': podcast_config.get('image') or parser.get_image(),
                   'image_credit': podcast_config.get('image_credit'),

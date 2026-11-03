@@ -30,6 +30,7 @@ class NachYomiParserTest(unittest.TestCase):
         self.assertNotEqual(parsers[0].get_feed_id(), parsers[1].get_feed_id())
         # the files' dates are of their upload, not of the lessons: no years, nor a description of the date
         self.assertFalse(parsers[0].dated)
+        self.assertEqual([1, 2], [parser.order for parser in parsers])  # the Bible's order, as the schedule's
         self.assertEqual('', next(parsers[0].get_episodes()).get_summary())
 
 

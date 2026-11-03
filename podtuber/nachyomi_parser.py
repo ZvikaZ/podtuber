@@ -22,7 +22,10 @@ CHAPTER = re.compile(r'\{book:"([^"]*)",chapter:"([^"]*)"')
 
 
 def get_series_parsers(url, rav_name):
-    """the site's lessons, a chapter each, as a podcast per book of the Nach: https://nachyomi.netlify.app/lessons"""
+    """
+    the site's lessons, a chapter each, as a podcast per book of the Nach, in the Bible's order (the schedule's):
+    https://nachyomi.netlify.app/lessons
+    """
     books = {}
     for book, chapter in schedule_chapters(read_script()):
         books.setdefault(book, [])
@@ -41,7 +44,8 @@ def get_series_parsers(url, rav_name):
                         audio_url=audio_url(book, chapter), order=gematria(chapter))
                  for chapter in chapters],
         dated=False,
-    ) for book, chapters in books.items()]
+        order=number,
+    ) for number, (book, chapters) in enumerate(books.items(), 1)]
 
 
 def read_script():

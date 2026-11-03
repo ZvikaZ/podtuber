@@ -99,6 +99,15 @@ class AppLinkTest(unittest.TestCase):
         self.assertEqual('https://zvikaz.github.io/podtuber/a.rss',
                          self.run_script("return feedAddress('podcast://zvikaz.github.io/podtuber/a.rss');"))
 
+    def test_books_of_the_bible_are_in_its_order_and_other_series_by_name(self):
+        start = SCRIPT.index('function byName(')
+        function = SCRIPT[start:SCRIPT.index('\n}\n', start) + 2]
+        program = (f"{function}\nconst li = (name, order) => ({{dataset: {{name, order: String(order)}}}});"
+                   "console.log(JSON.stringify([li('שופטים', 2), li('ישעיהו', 7), li('יהושע', 1)].sort(byName)"
+                   ".concat([li('פורים', 0), li('אגרות', 0)].sort(byName)).map(x => x.dataset.name)));")
+        result = subprocess.run(['node', '-e', program], capture_output=True, text=True, encoding='utf8', check=True)
+        self.assertEqual(['יהושע', 'שופטים', 'ישעיהו', 'אגרות', 'פורים'], json.loads(result.stdout))
+
     def test_other_devices_open_other_apps(self):
         self.assertEqual('pcast://zvikaz.github.io/podtuber/a.rss',
                          self.app_link('Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 Chrome/130.0'))

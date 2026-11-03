@@ -1,6 +1,6 @@
 import unittest
 
-from podtuber.lessons import strip_rav_name
+from podtuber.lessons import plain_rav_name, strip_rav_name
 
 WISHLITZKY = 'הרב אלישע וישליצקי'
 
@@ -20,6 +20,11 @@ class StripRavNameTest(unittest.TestCase):
         self.assertEqual('הרב אלישע', strip_rav_name('הרב אלישע', WISHLITZKY, series=True))  # nothing but that: kept
         # a lesson's title may name another rav of his first name
         self.assertEqual('הרב יוסף קאפח על הרמב"ם', strip_rav_name('הרב יוסף קאפח על הרמב"ם', 'הרב יוסף קלנר'))
+
+    def test_the_rav_named_with_an_honorific(self):
+        # Bnei David names Rav Eisner 'הרב בני אייזנר זצ"ל', and his guest lessons after him
+        self.assertEqual('הרב בני אייזנר', plain_rav_name('הרב בני אייזנר זצ"ל'))
+        self.assertEqual('אגרות הראי"ה [3]', strip_rav_name('הרב בני אייזנר – אגרות הראי"ה [3]', 'הרב בני אייזנר זצ"ל'))
 
     def test_another_rav_named_is_kept(self):
         self.assertEqual('דברי הרב צבי יהודה', strip_rav_name('דברי הרב צבי יהודה', WISHLITZKY))

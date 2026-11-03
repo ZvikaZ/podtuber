@@ -58,6 +58,21 @@ class LibraryTest {
     }
 
     @Test
+    fun `books of the Bible are in its order, not by name`() {
+        fun book(id: String, name: String, order: Int) =
+            Series(id, name, "הרב מוטי פרנקו", "course", order, 1, "2024-11-10", "", true, "", "")
+        val books = Catalog(listOf(), listOf(book("joshua", "יהושע", 1), book("judges", "שופטים", 2), book("isaiah", "ישעיהו", 7)),
+            listOf(), mapOf("course" to "סדרות"))
+        val library = Library(object : Source {
+            override fun catalog() = books
+            override fun lessons(seriesId: String) = listOf<Lesson>()
+            override fun searchIndex() = listOf<SearchEntry>()
+        }, FakeListening(), Labels("המשך", "חדשים", "רבנים", { "$it סדרות" }, { "$it שיעורים" }, { "$it דק'" }))
+        assertEquals(listOf("series/joshua", "series/judges", "series/isaiah"),
+            library.children("rav/הרב מוטי פרנקו").map { it.id })
+    }
+
+    @Test
     fun `a series' lessons are numbered and playable`() {
         val nodes = library().children("series/a")
         assertEquals(listOf("1. שיעור 1", "2. שיעור 2", "3. שיעור 3"), nodes.map { it.title })

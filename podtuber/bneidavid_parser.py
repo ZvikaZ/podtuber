@@ -7,7 +7,7 @@ from urllib.parse import urlparse, unquote, quote
 from podtuber.audio_info import prefetch
 from podtuber.cache import cache
 from podtuber.hebrew_dates import gematria, year_name
-from podtuber.lessons import Lesson, SeriesParser, Topic, clean_text, strip_rav_name, topic_of
+from podtuber.lessons import Lesson, SeriesParser, Topic, clean_text, plain_rav_name, strip_rav_name, topic_of
 from podtuber.presentation import year_of
 from podtuber.wordpress import WordPressSite
 
@@ -24,6 +24,7 @@ HOLIDAY_SERIES = re.compile(r'^חגים\b')  # and his holidays' one: 'חגים 
 SUB_SERIES = [re.compile(r'\|\s*([^|\[\]]+?)\s*\[(?:\d+|חלק\s*[א-ת]\'?)\]'), re.compile(r'^([^|\[\]]+?)\s*\[\d+\]\s*$')]
 NOT_A_SERIES = re.compile(r'^(שיעור\s+)?כללי')  # '... | כללי [2]'
 LESSON_NUMBER = re.compile(r'[\[{](\d+)\]')  # 'מאמר הדור [3]', or the odd typo, 'כוזרי {60]'
+OTHER_LESSONS = 'שיעורים נוספים'  # a rav's guest lessons in others' series, when kept (guest_lessons)
 MIN_TEACHING = 3  # lessons, for a course taught again to be a podcast of its own
 HOLIDAYS = [  # each a podcast of a rav's holiday lessons; a list is a holiday's names, the first naming it
     'ראש השנה', ['יום כיפור', 'יום הכיפורים', 'כיפור', 'הכיפורים'],
@@ -40,10 +41,11 @@ DRIVE_FILE_ID = re.compile(r'action=stream_audio&file_id=([\w-]+)')
 STREAM_URL = f'{SITE.url}/wp-admin/admin-ajax.php?action=stream_audio&file_id={{}}'
 
 
-def get_series_parsers(url, topics=(), split_by_year=False):
+def get_series_parsers(url, topics=(), split_by_year=False, guest_lessons=False):
     """
     https://bneidavid.org/rav/<rav>/ is a podcast per series of that rav (leaving out his guest lessons in others'
-    series); https://bneidavid.org/series/<series>/ is that series alone.
+    series, unless guest_lessons: then they're a podcast of their own, for a rav who has little else on the site);
+    https://bneidavid.org/series/<series>/ is that series alone.
     His general series ('כללי - ...') is split: topics, the lessons whose titles name one of them (the first one
     named), are podcasts of their own (and per teaching year, with split_by_year: a course he taught again over the
     years), as are the series within it that only its lessons' titles name. His holidays' series is split by holiday.
@@ -58,12 +60,17 @@ def get_series_parsers(url, topics=(), split_by_year=False):
         for series_id in lesson['series']:
             by_series[series_id].append(lesson)
     series = {s['id']: s for s in SITE.get_terms('series', by_series)}
-    ravs = {r['id']: r for r in SITE.get_terms('rav', {rav for lesson in lessons for rav in lesson['rav']})}
+    ravs = {r['id']: {**r, 'name': plain_rav_name(r['name'])}
+            for r in SITE.get_terms('rav', {rav for lesson in lessons for rav in lesson['rav']})}
     if kind == 'rav':
+        guests = [lesson for series_id, series_lessons in by_series.items()
+                  if len(series_lessons) * 2 <= series[series_id]['count'] for lesson in series_lessons]
         by_series = {series_id: series_lessons for series_id, series_lessons in by_series.items()
                      if len(series_lessons) * 2 > series[series_id]['count']}
+        if guest_lessons and guests:
+            by_series[None] = list({lesson['id']: lesson for lesson in guests}.values())
 
-    for series_id in list(by_series):
+    for series_id in [series_id for series_id in by_series if series_id is not None]:  # (his guest lessons aren't split)
         name = clean_text(series[series_id]['name'])
         if GENERAL_SERIES.match(name):
             split(by_series, series_id, lambda lesson: general_topic(lesson, topics, split_by_year))
@@ -91,6 +98,8 @@ def get_series_parsers(url, topics=(), split_by_year=False):
             series_id, topic = series_id
             topic_id = hashlib.sha1(topic.encode()).hexdigest()[:8]
             name, feed_id = topic.name, f'bneidavid-{series_id}-topic-{topic_id}'
+        elif series_id is None:
+            name, feed_id = OTHER_LESSONS, f'bneidavid-rav-{term["id"]}-other'
         else:
             name, feed_id = strip_rav_name(clean_text(series[series_id]['name']), rav['name']), f'bneidavid-{series_id}'
         if with_audio:
@@ -100,11 +109,13 @@ def get_series_parsers(url, topics=(), split_by_year=False):
                 rav_name=rav['name'],
                 source_name=SOURCE_NAME,
                 description=f'שיעורי {rav["name"]} בסדרה "{name}", מתוך {SITE.url}',
-                website=series[series_id]['link'],
+                website=(series[series_id] if series_id is not None else term)['link'],
                 image=LOGO_URL,
                 lessons=[Lesson(id=f'bneidavid-{lesson["id"]}',
                                 date=datetime.fromisoformat(lesson['date_gmt']).replace(tzinfo=timezone.utc),
-                                title=clean_text(lesson['title']['rendered']),
+                                # (a guest lesson's title names its rav, as the series is of many ravs')
+                                title=clean_text(lesson['title']['rendered']) if series_id is not None else
+                                strip_rav_name(clean_text(lesson['title']['rendered']), rav['name']),
                                 link=lesson['link'],
                                 audio_url=lesson_audio_url(lesson),
                                 order=lesson['id'])
@@ -192,7 +203,9 @@ def general_topic(lesson, topics, split_by_year):
 
 
 def series_sort_key(series_id, series):
-    """by name; a general series' topics after it, by their names"""
+    """by name; a general series' topics after it, by their names; the rav's guest lessons last"""
+    if series_id is None:
+        return '￿', ''
     if isinstance(series_id, tuple):
         return series[series_id[0]]['name'], series_id[1]
     return series[series_id]['name'], ''

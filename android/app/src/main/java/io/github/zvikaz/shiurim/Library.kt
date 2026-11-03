@@ -227,9 +227,9 @@ class Library(private val source: Source, private val listening: Listening, priv
     private fun art(series: Series) = series.art.takeIf { it.isNotEmpty() && "://" !in it }
         ?: source.catalog().rav(series.rav)?.image
 
-    /** holidays in the order of the year; any other series by name */
+    /** holidays in the order of the year; any other series by name, unless it has a place of its own (a Bible book's) */
     private fun sorted(series: List<Series>) = series.sortedWith(compareBy<Series>({ GROUP_ORDER.indexOf(it.group) },
-        { if (it.group == "holiday") it.order else 0 }, { it.name }))
+        { it.order }, { it.name }))
 
     /** for searching: no niqqud, quotes or gershayim; common spellings as one ('אלוקים', 'אלקים') */
     private fun normalize(text: String) = text.replace(Regex("[֑-ׇ]"), "")

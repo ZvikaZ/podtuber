@@ -637,11 +637,15 @@ const sortSelect = $('sort');
 sortSelect.value = store.get('sort') || 'name';
 sortSelect.onchange = () => { store.set('sort', sortSelect.value); showBrowse(); };
 
+// by name; but series that have a place of their own (books of the Bible) by it
+function byName(a, b) {
+  return a.dataset.order - b.dataset.order || a.dataset.name.localeCompare(b.dataset.name, 'he');
+}
 function sorted(list) {
   const key = sortSelect.value;
   return [...list].sort((a, b) => key === 'updated' ? b.dataset.updated.localeCompare(a.dataset.updated)
     : key === 'size' ? b.dataset.size - a.dataset.size
-    : a.dataset.name.localeCompare(b.dataset.name, 'he'));
+    : byName(a, b));
 }
 function showBrowse() {
   const groups = $('groups');
@@ -848,6 +852,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
             badges += (f' <span class="badge missing" title="{texts["missing_title"]}">'
                        f'{texts["missing"](podcast.missing)}</span>')
         group, order = group_of(name)
+        order = entry.get('order') or order  # a series' own place, as a book's in the Bible
         origin = texts['source'].get(source, source)  # the site its lessons are from, as the page names it
         items.append(ITEM.format(
             feed_id=escape(feed_id), rav=escape(rav), name=escape(name), source=escape(source), group=group, order=order,

@@ -60,6 +60,13 @@ def clean_text(text):
     return ' '.join(html.unescape(text).replace("''", '"').split())
 
 
+HONORIFIC = re.compile(r'\s+(?:זצ"ל|זצוק"ל|שליט"א)$')  # after a rav's name, as some sites name him: 'הרב בני אייזנר זצ"ל'
+
+
+def plain_rav_name(name):
+    return HONORIFIC.sub('', clean_text(name))
+
+
 def strip_rav_name(text, rav_name, series=False):
     """
     'כוזרי [תשע"ז] - הרב קלנר' -> 'כוזרי [תשע"ז]', where the rav's full name is given separately anyway; and
@@ -67,6 +74,7 @@ def strip_rav_name(text, rav_name, series=False):
     """
     if not rav_name:
         return text
+    rav_name = plain_rav_name(rav_name)
     last_name = rav_name.split()[-1]
     text = re.sub(rf'\s*[-|–]?\s*(?:שיעורי\s+)?הרב\s+(?:\S+\s+){{0,2}}{re.escape(last_name)}\b(?:\s+(?:שליט"א|זצ"ל))?',
                   '', text)
@@ -142,13 +150,15 @@ class SeriesParser:
     """a series of lessons by one rav on one site, as a podcast"""
 
     def __init__(self, *, feed_id, name, rav_name, source_name, description, website, image, lessons,
-                 number_pattern=None, missing=0, dated=True):
+                 number_pattern=None, missing=0, dated=True, order=0):
         """
         missing: how many of the series' lessons have no recording (besides those whose file is gone); dated: whether
-        the lessons' dates are when they were taught, rather than (say) when the files were uploaded, all at once
+        the lessons' dates are when they were taught, rather than (say) when the files were uploaded, all at once;
+        order: its place among its rav's series, before their names order them (a book's, in the Bible)
         """
         self.feed_id = feed_id
         self.dated = dated
+        self.order = order
         self.missing = missing
         self.name = name
         self.rav_name = rav_name
