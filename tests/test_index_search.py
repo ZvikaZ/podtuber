@@ -68,6 +68,25 @@ class ShareTest(unittest.TestCase):
                          self.share(None))
 
 
+@unittest.skipUnless(shutil.which('node'), 'needs Node')
+class AppLinkTest(unittest.TestCase):
+    def app_link(self, user_agent):
+        start = SCRIPT.index('function appLink(')
+        function = SCRIPT[start:SCRIPT.index('\n}\n', start) + 2]
+        program = f"{function}\nconsole.log(appLink('pcast://zvikaz.github.io/podtuber/a.rss', {json.dumps(user_agent)}));"
+        return subprocess.run(['node', '-e', program], capture_output=True, text=True, check=True).stdout.strip()
+
+    def test_apples_devices_open_their_podcasts_app_by_its_own_scheme(self):
+        # the Mac's Podcasts app opens pcast:// links, but fails to add their feed
+        for user_agent in ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15',
+                           'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15']:
+            self.assertEqual('podcast://zvikaz.github.io/podtuber/a.rss', self.app_link(user_agent))
+
+    def test_other_devices_open_other_apps(self):
+        self.assertEqual('pcast://zvikaz.github.io/podtuber/a.rss',
+                         self.app_link('Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 Chrome/130.0'))
+
+
 class RavFilterTest(unittest.TestCase):
     def test_the_ravs_to_choose_from_are_by_surname(self):
         ravs = [('הרב אורי שרקי', 3, 10, None), ('הרב שלמה אבינר', 2, 5, None), ('הרב "x" <y>', 1, 1, None)]

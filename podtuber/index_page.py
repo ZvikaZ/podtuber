@@ -415,11 +415,14 @@ function excerpt(text, query) {
 const items = [...document.querySelectorAll('#series > li')];
 const byId = Object.fromEntries(items.map(li => [li.id, li]));
 
-// opening a podcast app: the iPhone's own by podcast://, any other by pcast:// (Pocket Casts, Podcast Addict...);
+// opening a podcast app: Apple's (on an iPhone, an iPad or a Mac) by podcast://, as the Mac's fails to add a feed
+// by pcast://; any other by pcast:// (Pocket Casts, Podcast Addict...)
+function appLink(href, userAgent) {
+  return /iPhone|iPad|iPod|Macintosh/.test(userAgent) ? href.replace(/^pcast:/, 'podcast:') : href;
+}
 // if the page is still in view a moment later, none opened
-const iphone = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 for (const link of document.querySelectorAll('a[data-app]')) {
-  if (iphone) link.href = link.href.replace(/^pcast:/, 'podcast:');
+  link.href = appLink(link.href, navigator.userAgent);
   link.addEventListener('click', () => {
     let left = false;
     const away = () => left = true;
@@ -1054,5 +1057,5 @@ def search_entry(series, episode, position, texts):
 
 
 def podcast_app_url(feed_url):
-    """Pocket Casts (and some other apps) open feeds by the pcast:// scheme; the page makes it podcast:// on iPhones"""
+    """Pocket Casts (and some other apps) open feeds by the pcast:// scheme; the page makes it podcast:// on Apple's devices"""
     return 'pcast://' + feed_url.removeprefix(f'{urlparse(feed_url).scheme}://')
