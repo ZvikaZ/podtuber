@@ -82,6 +82,23 @@ class AppLinkTest(unittest.TestCase):
                            'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15']:
             self.assertEqual('podcast://zvikaz.github.io/podtuber/a.rss', self.app_link(user_agent))
 
+    def run_script(self, test):
+        functions = ''
+        for name in ('isMac', 'feedAddress'):
+            start = SCRIPT.index(f'function {name}(')
+            functions += SCRIPT[start:SCRIPT.index('\n}\n', start) + 2]
+        program = f"{functions}\nconsole.log(JSON.stringify((() => {{ {test} }})()));"
+        return json.loads(subprocess.run(['node', '-e', program], capture_output=True, text=True, check=True).stdout)
+
+    def test_a_mac_copies_the_feeds_address_to_paste_in_its_app(self):
+        # the Mac's Podcasts app, opened by podcast://, leaves its address box empty
+        self.assertEqual([True, False, False], self.run_script(
+            "return [isMac('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0),"
+            "        isMac('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5),"  # an iPad, asking for a Mac's page
+            "        isMac('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 5)];"))
+        self.assertEqual('https://zvikaz.github.io/podtuber/a.rss',
+                         self.run_script("return feedAddress('podcast://zvikaz.github.io/podtuber/a.rss');"))
+
     def test_other_devices_open_other_apps(self):
         self.assertEqual('pcast://zvikaz.github.io/podtuber/a.rss',
                          self.app_link('Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 Chrome/130.0'))

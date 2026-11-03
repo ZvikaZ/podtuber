@@ -40,6 +40,7 @@ def get_series_parsers(url, rav_name):
         lessons=[Lesson(id=f'nachyomi-{book}-{chapter}', date=UPLOADED, title=f'{book} פרק {chapter}', link=url,
                         audio_url=audio_url(book, chapter), order=gematria(chapter))
                  for chapter in chapters],
+        dated=False,
     ) for book, chapters in books.items()]
 
 

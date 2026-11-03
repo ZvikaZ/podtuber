@@ -119,6 +119,7 @@ TEXTS = {
             'copied': 'הכתובת הועתקה',
             'link_copied': 'הקישור הועתק',
             'no_app': 'לא נפתחה אפליקציה? אפשר להעתיק את הכתובת ולהוסיף אותה באפליקציה.',
+            'paste_feed': 'כתובת הסדרה הועתקה: הדביקו אותה (⌘V) בחלון שנפתח באפליקציית הפודקאסטים, ואשרו.',
             'from_first': 'מהראשון',
             'from_last': 'מהאחרון',
             'share_text': '"{name}" – {rav}, {count} שיעורים. להאזנה ולהוספה לאפליקציה:',
@@ -337,12 +338,12 @@ function element(tag, text, className) {
   return node;
 }
 let toastTimer;
-function toast(text) {
+function toast(text, shown = 2500) {
   const box = $('toast');
   box.textContent = text;
   box.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => box.hidden = true, 2500);
+  toastTimer = setTimeout(() => box.hidden = true, shown);
 }
 function copy(text, done) {
   navigator.clipboard.writeText(text).then(() => toast(done), () => window.prompt('', text));
@@ -420,10 +421,25 @@ const byId = Object.fromEntries(items.map(li => [li.id, li]));
 function appLink(href, userAgent) {
   return /iPhone|iPad|iPod|Macintosh/.test(userAgent) ? href.replace(/^pcast:/, 'podcast:') : href;
 }
+// but a Mac's Podcasts app, opened so, doesn't fill in the feed's address (Apple has no link that does): there, it's
+// copied first, to paste in the app (an iPad asks for a Mac's pages too, but has a touch screen, and its app fills it)
+function isMac(userAgent, touchPoints) {
+  return /Macintosh/.test(userAgent) && !(touchPoints > 1);
+}
+function feedAddress(href) {
+  return href.replace(/^[a-z]+:\/\//, 'https://');
+}
 // if the page is still in view a moment later, none opened
 for (const link of document.querySelectorAll('a[data-app]')) {
   link.href = appLink(link.href, navigator.userAgent);
-  link.addEventListener('click', () => {
+  link.addEventListener('click', event => {
+    if (isMac(navigator.userAgent, navigator.maxTouchPoints)) {
+      event.preventDefault();
+      const address = feedAddress(link.href), open = () => location.href = link.href;
+      navigator.clipboard.writeText(address).then(() => { toast(TEXTS.paste_feed, 10000); open(); },
+                                                  () => { window.prompt(TEXTS.paste_feed, address); open(); });
+      return;
+    }
     let left = false;
     const away = () => left = true;
     document.addEventListener('visibilitychange', away, {once: true});
@@ -501,7 +517,7 @@ if (app) {
 }
 function row(meta, links) {  // a lesson's date and length, and its buttons beside them
   const line = element('div', null, 'row');
-  line.append(element('div', meta.join(' · '), 'meta'), links);
+  line.append(element('div', meta.filter(Boolean).join(' · '), 'meta'), links);
   return line;
 }
 function descriptionButton(text) {  // three lines of it, all of it when tapped
@@ -854,7 +870,7 @@ def write_index(podcasts, path, title, lang='he', base_url='', stale=None):
         lessons += [search_entry(len(series) - 1, episode, position, texts)
                     for position, episode in enumerate(episodes, 1)]
         newest += [(episode, position, feed_id, about(name, rav, origin))
-                   for position, episode in enumerate(episodes, 1)][-3:]
+                   for position, episode in enumerate(episodes, 1) if not getattr(episode, 'undated', False)][-3:]
         write_episodes(path.parent / EPISODES_DIR / f'{feed_id}.json', episodes, texts)
 
     index = json.dumps({'series': series, 'lessons': lessons}, ensure_ascii=False, separators=(',', ':'))
@@ -1018,10 +1034,15 @@ def write_episodes(path, episodes, texts):
     """a podcast's episodes: [title, date, minutes, audio url, description] each"""
     path.parent.mkdir(parents=True, exist_ok=True)
     # (numbered by the page itself)
-    path.write_text(json.dumps([[re.sub(r'^\d+\.\s+', '', episode.title or ''), texts['date'](episode.publication_date.date()),
+    path.write_text(json.dumps([[re.sub(r'^\d+\.\s+', '', episode.title or ''), lesson_date(episode, texts),
                                  minutes(episode), audio_url(episode), description(episode, texts)]
                                 for episode in episodes], ensure_ascii=False, separators=(',', ':')),
                     encoding='utf8')
+
+
+def lesson_date(episode, texts):
+    """the lesson's date as shown, or none, when its date is only of its file's upload"""
+    return '' if getattr(episode, 'undated', False) else texts['date'](episode.publication_date.date())
 
 
 def audio_url(episode):
@@ -1052,8 +1073,7 @@ def search_entry(series, episode, position, texts):
     """
     return [series, getattr(episode, 'original_title', None) or episode.title or '',
             ' '.join(ADDRESS.sub(' ', description(episode, texts)).split()),
-            texts['date'](episode.publication_date.date()),
-            minutes(episode), position, audio_url(episode)]
+            lesson_date(episode, texts), minutes(episode), position, audio_url(episode)]
 
 
 def podcast_app_url(feed_url):

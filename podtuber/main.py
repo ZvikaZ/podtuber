@@ -172,7 +172,12 @@ def create_rss(parser, podcast_config, config, output_dir):
 
     podcast.missing = getattr(parser, 'missing_count', lambda: 0)()
     podcast.course = course
-    podcast.years = presentation.years_span([episode.publication_date.date() for episode in podcast.episodes])
+    if getattr(parser, 'dated', True):
+        podcast.years = presentation.years_span([episode.publication_date.date() for episode in podcast.episodes])
+    else:  # no years, nor dates, from dates that aren't the lessons'
+        podcast.years = ''
+        for episode in podcast.episodes:
+            episode.undated = True
     if linked:  # a podcast that already exists is subscribed to at its source
         podcast.description = parser.get_description()
         podcast.image = podcast_config.get('image') or parser.get_image()

@@ -66,6 +66,13 @@ class LessonDescriptionTest(unittest.TestCase):
         keywords = 'טז חשוון התשפז ' + 'תפילה על חברו והיענות, ' * 12 + 'תנועת נעם והבחירות'
         self.assertIn('תנועת נעם', search_entry(0, self.episode(keywords), 1, TEXTS['he'])[2])
 
+    def test_a_lesson_whose_date_is_only_of_its_upload_shows_none(self):
+        # Nach Yomi's lessons: the files were uploaded all at once, years after they were taught
+        undated = self.episode('')
+        undated.undated = True
+        self.assertEqual('', search_entry(0, undated, 1, TEXTS['he'])[3])
+        self.assertNotEqual('', search_entry(0, self.episode(''), 1, TEXTS['he'])[3])
+
     def test_addresses_in_a_description_arent_searched(self):
         summary = ("💻 לצפייה ביוטיוב: https://youtu.be/UgrL1phe9tE ראש מילין, אות ט': https://he.wikisource.org/wiki/x "
                    'לפניות: shiuryomi@beityehouda.co.il')

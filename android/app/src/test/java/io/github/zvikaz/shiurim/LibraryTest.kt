@@ -67,6 +67,12 @@ class LibraryTest {
     }
 
     @Test
+    fun `a lesson without a date shows only its length`() {
+        val undated = lessons + ("a" to listOf(Lesson("a", 1, "יהושע פרק א", "", 8, "https://x/a1.mp4", "")))
+        assertEquals("8 דק'", library(lessons = undated).children("series/a").single().subtitle)
+    }
+
+    @Test
     fun `playing a lesson plays its series on from it, where it was left`() {
         val listening = FakeListening(mutableMapOf("a/2" to Progress(60_000, 3_000_000, false)))
         val queue = library(listening).queue("lesson/a/2")!!

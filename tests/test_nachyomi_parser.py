@@ -28,6 +28,9 @@ class NachYomiParserTest(unittest.TestCase):
                          '%D7%99%D7%94%D7%95%D7%A9%D7%A2+%D7%A4%D7%A8%D7%A7+%D7%90.mp4',
                          parsers[0].lessons[0].audio_url)
         self.assertNotEqual(parsers[0].get_feed_id(), parsers[1].get_feed_id())
+        # the files' dates are of their upload, not of the lessons: no years, nor a description of the date
+        self.assertFalse(parsers[0].dated)
+        self.assertEqual('', next(parsers[0].get_episodes()).get_summary())
 
 
 if __name__ == '__main__':

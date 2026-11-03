@@ -202,7 +202,8 @@ class Library(private val source: Source, private val listening: Listening, priv
         val lessons = source.lessons(seriesId)
         val progressOf = progressIn(seriesId, lessons.size)
         return lessons.map { lesson ->
-            val details = listOfNotNull(lesson.date, lesson.minutes?.let(labels.minutes)).joinToString(" · ")
+            // (a lesson whose date isn't known, such as one of files all uploaded at once, has none)
+            val details = listOfNotNull(lesson.date.ifEmpty { null }, lesson.minutes?.let(labels.minutes)).joinToString(" · ")
             Node(lessonId(seriesId, lesson.position), "${lesson.position}. ${lesson.title}", details, art = art(series),
                 progress = progressOf(lesson.position, lesson.url), url = lesson.url,
                 series = seriesId)

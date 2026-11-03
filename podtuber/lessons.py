@@ -98,8 +98,9 @@ def sort_lessons(lessons, number_pattern=None):
 
 
 class LessonParser:
-    def __init__(self, lesson, rav_name, publication_date, series_name):
+    def __init__(self, lesson, rav_name, publication_date, series_name, dated=True):
         self.lesson = lesson
+        self.dated = dated
         self.rav_name = rav_name
         self.publication_date = publication_date
         self.series_name = series_name
@@ -114,6 +115,8 @@ class LessonParser:
         return self.lesson.title
 
     def get_summary(self):
+        if not self.dated:
+            return ''
         return HebrewDate.from_pydate(self.lesson.date.date()).hebrew_date_string()
 
     def get_publication_date(self):
@@ -139,9 +142,13 @@ class SeriesParser:
     """a series of lessons by one rav on one site, as a podcast"""
 
     def __init__(self, *, feed_id, name, rav_name, source_name, description, website, image, lessons,
-                 number_pattern=None, missing=0):
-        """missing: how many of the series' lessons have no recording (besides those whose file is gone)"""
+                 number_pattern=None, missing=0, dated=True):
+        """
+        missing: how many of the series' lessons have no recording (besides those whose file is gone); dated: whether
+        the lessons' dates are when they were taught, rather than (say) when the files were uploaded, all at once
+        """
         self.feed_id = feed_id
+        self.dated = dated
         self.missing = missing
         self.name = name
         self.rav_name = rav_name
@@ -187,4 +194,4 @@ class SeriesParser:
     def get_episodes(self):
         dates = monotonic_dates([lesson.date.replace(microsecond=0) for lesson in self.lessons])
         for lesson, publication_date in zip(self.lessons, dates):
-            yield LessonParser(lesson, self.rav_name, publication_date, self.name)
+            yield LessonParser(lesson, self.rav_name, publication_date, self.name, self.dated)
