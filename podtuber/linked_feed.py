@@ -15,14 +15,33 @@ ITUNES = '{http://www.itunes.com/dtds/podcast-1.0.dtd}'
 USER_AGENT = 'Mozilla/5.0 (compatible; podtuber)'
 
 
-def get_parsers(url, rav_name, source_name, title_include=None, title_exclude=None, title_language=None, series=()):
+def read_channel(url):
     request = urllib.request.Request(url, headers={'User-Agent': USER_AGENT})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        channel = ET.fromstring(response.read()).find('channel')
+    with urllib.request.urlopen(request, timeout=300) as response:
+        return ET.fromstring(response.read()).find('channel')
+
+
+def get_parsers(url, rav_name, source_name, title_include=None, title_exclude=None, title_language=None, series=()):
+    """
+    url: a feed, or several feeds of one rav to split by topic together: the podcasts are the first one's (named,
+    described and identified by it), with the others' episodes added, but for copies of an episode already there
+    """
+    urls = [url] if isinstance(url, str) else url
+    channels = [read_channel(feed) for feed in urls]
+    channel, url = channels[0], urls[0]
     include = re.compile(title_include) if title_include else None
     exclude = re.compile(title_exclude, re.IGNORECASE) if title_exclude else None
-    items = [item for item in channel.findall('item')
-             if matches_title(item.findtext('title') or '', include, exclude, title_language)]
+    items, recordings = [], set()
+    for feed in channels:
+        for item in feed.findall('item'):
+            recording = same_file_key(item)
+            if recording in recordings:
+                continue
+            if matches_title(item.findtext('title') or '', include, exclude, title_language):
+                items.append(item)
+                recordings.add(recording)
+    if len(channels) > 1:
+        items.sort(key=publication_date, reverse=True)
     if not series:
         return [LinkedPodcastParser(url, channel, rav_name, source_name, items=items)]
 
@@ -39,6 +58,19 @@ def get_parsers(url, rav_name, source_name, title_include=None, title_exclude=No
             parsers.append(LinkedPodcastParser(url, channel, rav_name, source_name, items=selected,
                                                name=configured['name']))
     return parsers
+
+
+def same_file_key(item):
+    """the same file, re-posted by another feed (under another title and date), has the same size and duration"""
+    enclosure = item.find('enclosure')
+    size = int(enclosure.get('length') or 0) if enclosure is not None else 0
+    duration = parse_duration(item.findtext(f'{ITUNES}duration'))
+    return (size, duration) if size and duration else id(item)
+
+
+def publication_date(item):
+    published = parsedate_to_datetime(item.findtext('pubDate'))
+    return published if published.tzinfo else published.replace(tzinfo=timezone.utc)
 
 
 def matches_title(title, include=None, exclude=None, language=None):
@@ -80,8 +112,7 @@ class EpisodeParser:
         return self.item.findtext('description') or ''
 
     def get_publication_date(self):
-        published = parsedate_to_datetime(self.item.findtext('pubDate'))
-        return published if published.tzinfo else published.replace(tzinfo=timezone.utc)
+        return publication_date(self.item)
 
     def get_explicit(self):
         return False

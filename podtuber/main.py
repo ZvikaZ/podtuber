@@ -77,10 +77,14 @@ def read_sources(config, output_dir):
     parsers, failures = [], {}
     for podcast_config in config.get('podcasts'):
         # an entry is either a url of a source (a playlist, a rav's page...), or podcasts that already exist (feeds)
-        for url in podcast_config.get('feeds') or [podcast_config['url']]:
+        sources = podcast_config.get('feeds') or [podcast_config['url']]
+        if podcast_config.get('series'):  # feeds split by topic together: their episodes in one set of podcasts
+            sources = [sources]
+        for source in sources:
+            url = source if isinstance(source, str) else source[0]
             try:
                 if 'feeds' in podcast_config:
-                    found = linked_feed.get_parsers(url, podcast_config['rav'], podcast_config.get('source', ''),
+                    found = linked_feed.get_parsers(source, podcast_config['rav'], podcast_config.get('source', ''),
                                                     podcast_config.get('title_include'),
                                                     podcast_config.get('title_exclude'),
                                                     podcast_config.get('title_language'),

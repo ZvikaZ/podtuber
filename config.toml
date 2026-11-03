@@ -248,10 +248,13 @@ image = 'https://zvikaz.github.io/podtuber/yosef-kalner.jpg'
 # (rav names their rav, for the index page's buttons; source is shown next to their name)
 [[podcasts]]
 rav = 'הרב אשר וייס'
-source = 'אוצר התורה'
-feeds = ['https://rabmeireliyahu.github.io/ravasherweiss/feed.xml']
+source = 'אוצר התורה, מנחת אשר'
+feeds = [
+    'https://rabmeireliyahu.github.io/ravasherweiss/feed.xml',
+    'https://anchor.fm/s/5cfcf6b4/podcast/rss',  # מנחת אשר (minchasasher.com); its copies of the first's are skipped
+]
 image = 'https://zvikaz.github.io/podtuber/asher-weiss.jpg'
-# The feed mixes Hebrew, English and Yiddish. Publish local, Hebrew-only feeds split by title topic.
+# The feeds mix Hebrew, English and Yiddish. Publish local, Hebrew-only feeds split by title topic.
 publish = true
 title_language = 'he'
 title_exclude = 'אידיש|יידיש|Yiddish'
